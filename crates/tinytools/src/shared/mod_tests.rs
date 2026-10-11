@@ -176,6 +176,34 @@ impl Tool for Opinionated {
     }
 }
 
+struct AsyncTargetOnly;
+
+#[async_trait]
+impl Tool for AsyncTargetOnly {
+    fn name(&self) -> &'static str {
+        "async_target_only"
+    }
+
+    fn description(&self) -> &'static str {
+        "Resolves its target asynchronously"
+    }
+
+    fn parameters_schema(&self) -> Value {
+        json!({ "type": "object" })
+    }
+
+    async fn execute(&self, _args: Value) -> anyhow::Result<ToolResult> {
+        Ok(ToolResult::success("ok"))
+    }
+
+    async fn indirect_target_async(
+        &self,
+        _args: &Value,
+    ) -> anyhow::Result<Option<crate::IndirectCall>> {
+        Ok(Some(crate::ToolSubject::named("owner_target").into()))
+    }
+}
+
 /// A trivial run context, so the context-forwarding path can be observed.
 struct Run;
 
@@ -183,6 +211,20 @@ impl ToolRunContext for Run {}
 
 fn wrapped() -> SharedTool {
     SharedTool::new(Arc::new(Opinionated::default()))
+}
+
+#[tokio::test]
+async fn shared_wrapper_forwards_async_target_resolution() {
+    let tool = SharedTool::new(Arc::new(AsyncTargetOnly));
+    let resolved = tool
+        .indirect_target_async(&json!({}))
+        .await
+        .expect("wrapped target resolution succeeds");
+
+    assert_eq!(
+        resolved.map(|call| call.target.name),
+        Some("owner_target".to_owned())
+    );
 }
 
 #[test]

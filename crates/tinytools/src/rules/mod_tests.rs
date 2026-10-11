@@ -52,6 +52,34 @@ impl Tool for AsyncDispatcher {
     }
 }
 
+struct FailingAsyncDispatcher;
+
+#[async_trait]
+impl Tool for FailingAsyncDispatcher {
+    fn name(&self) -> &'static str {
+        "failing_async_dispatcher"
+    }
+
+    fn description(&self) -> &'static str {
+        "Cannot resolve its target"
+    }
+
+    fn parameters_schema(&self) -> Value {
+        json!({ "type": "object" })
+    }
+
+    async fn execute(&self, _args: Value) -> anyhow::Result<ToolResult> {
+        Ok(ToolResult::success("ok"))
+    }
+
+    async fn indirect_target_async(
+        &self,
+        _args: &Value,
+    ) -> anyhow::Result<Option<crate::IndirectCall>> {
+        anyhow::bail!("target unavailable")
+    }
+}
+
 #[tokio::test]
 async fn async_indirect_target_is_evaluated_against_target_rules() {
     let rules = ToolRuleSet::single(layer(json!({ "rules": [
@@ -64,6 +92,21 @@ async fn async_indirect_target_is_evaluated_against_target_rules() {
         .expect("target resolution succeeds");
 
     assert!(!decision.callable);
+}
+
+#[tokio::test]
+async fn async_target_resolution_errors_propagate_instead_of_admitting_dispatcher_only() {
+    let rules = ToolRuleSet::single(layer(json!({ "rules": [
+        { "effect": "allow", "match": { "name": "failing_async_dispatcher" } },
+        { "effect": "deny", "match": { "name": "mcp_*_delete_*" } },
+    ] })));
+
+    let error = rules
+        .evaluate_call_async(&FailingAsyncDispatcher, &ctx(), &json!({}))
+        .await
+        .expect_err("failed target resolution must not admit only the dispatcher");
+
+    assert_eq!(error.to_string(), "target unavailable");
 }
 
 // ── glob ──────────────────────────────────────────────────────────────────
