@@ -6,6 +6,7 @@
 /// This is the single place the marker vocabulary is written down. The
 /// delegation return path uses it to notice a sub-agent that emitted a tool
 /// call instead of executing one (#6033).
+#[must_use]
 pub fn looks_like_unexecuted_tool_call(text: &str) -> bool {
     contains_tool_call_payload(text) || text.contains("\"tool_use\"")
 }
@@ -20,6 +21,7 @@ pub fn looks_like_unexecuted_tool_call(text: &str) -> bool {
 ///
 /// The JSON key is matched without assuming it opens the object, so a
 /// pretty-printed `{\n  "tool_calls": [...]\n}` is recognised too.
+#[must_use]
 pub fn contains_tool_call_payload(text: &str) -> bool {
     text.contains("<tool_call>") || text.contains("\"tool_calls\"")
 }
@@ -27,12 +29,13 @@ pub fn contains_tool_call_payload(text: &str) -> bool {
 /// Strip legacy tool-call markup from an assistant response.
 ///
 /// This function applies a lightweight heuristic: it removes any contiguous
-/// XML tool-call spans and individual lines beginning with the tool_calls
-/// JSON key, or containing the tool_use key. It does not parse multiline JSON.
+/// XML tool-call spans and individual lines beginning with the `tool_calls`
+/// JSON key, or containing the `tool_use` key. It does not parse multiline JSON.
 /// A marker-free response is returned verbatim; otherwise whitespace around
 /// the remaining prose is normalised. The output may be empty
 /// if the entire response was tool-call markup — callers should handle that
 /// case (empty text → no-op ingest).
+#[must_use]
 pub fn strip_tool_calls_from_response(response: &str) -> String {
     // Fast path: if the response contains no obvious tool-call markers, return
     // it unchanged to avoid unnecessary allocation.
