@@ -38,3 +38,24 @@ fn a_pure_payload_strips_to_empty() {
         ""
     );
 }
+
+#[test]
+fn marker_lines_and_repeated_spans_leave_prose_in_order() {
+    let input = concat!(
+        "Before  \n",
+        "  \"tool_calls\": []\n",
+        "{\"tool_use\":{}}\n",
+        "<tool_call>a</tool_call><tool_call>b</tool_call>\n",
+        "After  "
+    );
+    assert_eq!(strip_tool_calls_from_response(input), "Before\n\nAfter");
+    assert_eq!(strip_tool_calls_from_response("  prose\n\n"), "  prose\n\n");
+}
+
+#[test]
+fn tool_use_prose_is_a_broad_hint_without_a_call_shaped_payload() {
+    let text = "The protocol calls it \"tool_use\".";
+    assert!(looks_like_unexecuted_tool_call(text));
+    assert!(!contains_tool_call_payload(text));
+    assert_eq!(strip_tool_calls_from_response(text), "");
+}
