@@ -35,6 +35,7 @@ mod native;
 mod pairing;
 mod pformat;
 mod types;
+mod unexecuted;
 mod xml;
 
 pub use crate::codecall::CodeStyle;
@@ -55,6 +56,9 @@ pub use pformat::PFormatDialect;
 pub use types::{
     DialectMessage, DialectResponse, DialectRole, NativeToolCall, ToolCallFormat, ToolOutcome,
     ToolResultEntry, TranscriptEntry,
+};
+pub use unexecuted::{
+    contains_tool_call_payload, looks_like_unexecuted_tool_call, strip_tool_calls_from_response,
 };
 pub use xml::XmlDialect;
 

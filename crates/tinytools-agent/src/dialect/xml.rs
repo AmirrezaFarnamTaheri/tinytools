@@ -22,6 +22,13 @@ use tinytools::ToolSpec;
 pub struct XmlDialect;
 
 impl XmlDialect {
+    /// Description-catalogue protocol for hosts supplying schemas separately.
+    /// Bytes are stable for persisted prompt caches.
+    #[must_use]
+    pub fn description_protocol() -> &'static str {
+        include_str!("xml_protocol.txt")
+    }
+
     /// Recover tool calls from raw model text with default options.
     ///
     /// Shared with the other two dialects: p-format falls back to it per tag,
