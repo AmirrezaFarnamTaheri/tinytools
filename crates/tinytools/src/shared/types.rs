@@ -20,7 +20,7 @@ use crate::tool::{Tool, ToolExposure};
 ///
 /// # Every method, deliberately
 ///
-/// [`Tool`] has four required methods and twenty-three defaulted ones. A wrapper
+/// [`Tool`] has four required methods and twenty-four defaulted ones. A wrapper
 /// implementing only the four would compile and silently answer the defaults
 /// for the tool it wraps — a [`PermissionLevel::Write`] tool would read as
 /// read-only, an admission gate would see the wrong
@@ -126,6 +126,13 @@ impl Tool for SharedTool {
 
     fn indirect_target(&self, args: &Value) -> Option<crate::rules::IndirectCall> {
         self.0.indirect_target(args)
+    }
+
+    async fn indirect_target_async(
+        &self,
+        args: &Value,
+    ) -> anyhow::Result<Option<crate::rules::IndirectCall>> {
+        self.0.indirect_target_async(args).await
     }
 
     fn is_concurrency_safe(&self, args: &Value) -> bool {

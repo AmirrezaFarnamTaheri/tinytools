@@ -244,6 +244,17 @@ pub trait Tool: Send + Sync {
         None
     }
 
+    /// Resolves the tool a call reaches when that target must be obtained
+    /// asynchronously, for example from a module-owned declaration service.
+    ///
+    /// This defaults to [`Self::indirect_target`], preserving existing
+    /// synchronous implementations. A resolution error must be treated as a
+    /// refusal by policy evaluators so a dispatcher cannot bypass target
+    /// rules when its target is unavailable.
+    async fn indirect_target_async(&self, args: &Value) -> anyhow::Result<Option<IndirectCall>> {
+        Ok(self.indirect_target(args))
+    }
+
     /// Whether two concurrent invocations are safe to run in parallel within a
     /// single model turn.
     ///
