@@ -67,6 +67,46 @@ async fn execute_returns_the_expected_output() {
     assert_eq!(result.output(), "hello-tool");
 }
 
+struct LegacyDispatcher;
+
+#[async_trait]
+impl Tool for LegacyDispatcher {
+    fn name(&self) -> &str {
+        "legacy_dispatcher"
+    }
+
+    fn description(&self) -> &str {
+        "Uses the synchronous target hook"
+    }
+
+    fn parameters_schema(&self) -> Value {
+        json!({ "type": "object" })
+    }
+
+    fn indirect_target(&self, args: &Value) -> Option<crate::IndirectCall> {
+        args.get("target")
+            .and_then(Value::as_str)
+            .map(|name| crate::ToolSubject::named(name).into())
+    }
+
+    async fn execute(&self, _args: Value) -> anyhow::Result<ToolResult> {
+        Ok(ToolResult::success("ok"))
+    }
+}
+
+#[tokio::test]
+async fn async_indirect_target_preserves_existing_sync_overrides() {
+    let resolved = LegacyDispatcher
+        .indirect_target_async(&json!({ "target": "mcp_docs_delete_123456" }))
+        .await
+        .expect("the legacy target hook is infallible");
+
+    assert_eq!(
+        resolved.map(|call| call.target.name),
+        Some("mcp_docs_delete_123456".to_owned())
+    );
+}
+
 #[tokio::test]
 async fn the_options_and_context_overloads_default_through_to_execute() {
     let with_options = DummyTool
