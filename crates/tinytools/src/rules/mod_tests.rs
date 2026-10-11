@@ -24,6 +24,48 @@ fn decide(rules: &ToolRules, subject: &ToolSubject, surface: Surface) -> RuleDec
     rules.evaluate(subject, &ctx(), surface, None)
 }
 
+struct AsyncDispatcher;
+
+#[async_trait]
+impl Tool for AsyncDispatcher {
+    fn name(&self) -> &'static str {
+        "mcp_call_tool"
+    }
+
+    fn description(&self) -> &'static str {
+        "Calls a named MCP tool"
+    }
+
+    fn parameters_schema(&self) -> Value {
+        json!({ "type": "object" })
+    }
+
+    async fn execute(&self, _args: Value) -> anyhow::Result<ToolResult> {
+        Ok(ToolResult::success("ok"))
+    }
+
+    async fn indirect_target_async(
+        &self,
+        _args: &Value,
+    ) -> anyhow::Result<Option<crate::IndirectCall>> {
+        Ok(Some(ToolSubject::named("mcp_docs_delete_123456").into()))
+    }
+}
+
+#[tokio::test]
+async fn async_indirect_target_is_evaluated_against_target_rules() {
+    let rules = ToolRuleSet::single(layer(json!({ "rules": [
+        { "effect": "deny", "match": { "name": "mcp_*_delete_*" } },
+    ] })));
+
+    let decision = rules
+        .evaluate_call_async(&AsyncDispatcher, &ctx(), &json!({}))
+        .await
+        .expect("target resolution succeeds");
+
+    assert!(!decision.callable);
+}
+
 // ── glob ──────────────────────────────────────────────────────────────────
 
 #[test]

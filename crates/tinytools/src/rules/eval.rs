@@ -342,9 +342,39 @@ impl ToolRuleSet {
         context: &RuleContext,
         args: &Value,
     ) -> RuleDecision {
+        self.evaluate_call_with_target(tool, context, args, tool.indirect_target(args))
+    }
+
+    /// Decides a concrete call using an asynchronously resolved dispatcher
+    /// target when the tool needs one.
+    ///
+    /// Existing synchronous tools continue to work through the default async
+    /// hook. A target-resolution error is returned to the caller so it can
+    /// fail closed rather than evaluate only the dispatcher.
+    ///
+    /// # Errors
+    ///
+    /// Returns the error from the tool's asynchronous target resolver.
+    pub async fn evaluate_call_async(
+        &self,
+        tool: &dyn Tool,
+        context: &RuleContext,
+        args: &Value,
+    ) -> anyhow::Result<RuleDecision> {
+        let target = tool.indirect_target_async(args).await?;
+        Ok(self.evaluate_call_with_target(tool, context, args, target))
+    }
+
+    fn evaluate_call_with_target(
+        &self,
+        tool: &dyn Tool,
+        context: &RuleContext,
+        args: &Value,
+        target: Option<super::subject::IndirectCall>,
+    ) -> RuleDecision {
         let subject = ToolSubject::of_call(tool, args);
         let direct = self.evaluate(&subject, context, Surface::Call, Some(args));
-        match tool.indirect_target(args) {
+        match target {
             Some(call) => {
                 // The target's own arguments, so an argument-scoped rule reads
                 // the same values as on a direct call of the target.
