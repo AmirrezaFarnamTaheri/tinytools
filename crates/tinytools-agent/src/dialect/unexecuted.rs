@@ -24,12 +24,13 @@ pub fn contains_tool_call_payload(text: &str) -> bool {
     text.contains("<tool_call>") || text.contains("\"tool_calls\"")
 }
 
-/// Strip tool-call JSON blocks from an assistant response, leaving only the
-/// prose text.
+/// Strip legacy tool-call markup from an assistant response.
 ///
 /// This function applies a lightweight heuristic: it removes any contiguous
-/// spans of text that look like `<tool_call>…</tool_call>` XML/JSON blocks or
-/// raw JSON objects that begin with `{"tool_calls":`. The output may be empty
+/// XML tool-call spans and individual lines beginning with the tool_calls
+/// JSON key, or containing the tool_use key. It does not parse multiline JSON.
+/// A marker-free response is returned verbatim; otherwise whitespace around
+/// the remaining prose is normalised. The output may be empty
 /// if the entire response was tool-call markup — callers should handle that
 /// case (empty text → no-op ingest).
 pub fn strip_tool_calls_from_response(response: &str) -> String {
