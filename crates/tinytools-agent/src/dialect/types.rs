@@ -344,3 +344,7 @@ pub enum ToolCallFormat {
     /// the prompt.
     TypeScript,
 }
+
+#[cfg(test)]
+#[path = "types_selection_tests.rs"]
+mod selection_tests;
