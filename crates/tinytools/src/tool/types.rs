@@ -92,6 +92,20 @@ pub trait Tool: Send + Sync {
     /// sees the reason and can adapt.
     async fn execute(&self, args: Value) -> anyhow::Result<ToolResult>;
 
+    /// Prepare host-owned facts needed to authorize this invocation.
+    ///
+    /// This runs after argument parsing and before the host's authorization
+    /// gate. It lets an embedding host consult an external capability service
+    /// without teaching this generic tool contract about that service or its
+    /// policy. The returned JSON is opaque to the runtime and is delivered to
+    /// the host gate with the original arguments. Errors fail admission closed;
+    /// callers must not replace a failed preparation with locally guessed
+    /// facts. Existing tools need no change because the default returns no
+    /// context.
+    async fn prepare_authorization(&self, _args: &Value) -> anyhow::Result<Option<Value>> {
+        Ok(None)
+    }
+
     /// Runs the tool with caller-supplied options.
     ///
     /// The default forwards to [`Self::execute`], so a tool that does not care

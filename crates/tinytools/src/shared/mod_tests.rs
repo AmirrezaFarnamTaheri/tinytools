@@ -1,6 +1,6 @@
 //! What [`SharedTool`] must not change about the tool it wraps.
 //!
-//! Twenty-two of `Tool`'s methods carry defaults, so a wrapper that forgot one
+//! Twenty-three of `Tool`'s methods carry defaults, so a wrapper that forgot one
 //! would compile and answer for its inner tool with the wrong value. The tool
 //! below overrides every defaulted method with a non-default answer, so a
 //! wrapper that dropped any of them reports the default and fails here.
@@ -50,6 +50,10 @@ impl Tool for Opinionated {
     async fn execute(&self, _args: Value) -> anyhow::Result<ToolResult> {
         self.executions.fetch_add(1, Ordering::SeqCst);
         Ok(ToolResult::success("plain"))
+    }
+
+    async fn prepare_authorization(&self, args: &Value) -> anyhow::Result<Option<Value>> {
+        Ok(Some(json!({"prepared": args["x"]})))
     }
 
     async fn execute_with_options(
@@ -262,6 +266,16 @@ fn the_wrapper_keeps_runtime_and_result_declarations() {
         tool.display_detail(&args).as_deref(),
         Some("about everything")
     );
+}
+
+#[tokio::test]
+async fn the_wrapper_forwards_async_authorization_preparation() {
+    let shared = SharedTool::new(Arc::new(Opinionated::default()));
+    let context = shared
+        .prepare_authorization(&json!({"x": "value"}))
+        .await
+        .unwrap();
+    assert_eq!(context, Some(json!({"prepared": "value"})));
 }
 
 /// A host recognises its own tool kinds through these; a wrapper that hid

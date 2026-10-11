@@ -20,7 +20,7 @@ use crate::tool::{Tool, ToolExposure};
 ///
 /// # Every method, deliberately
 ///
-/// [`Tool`] has four required methods and twenty-two defaulted ones. A wrapper
+/// [`Tool`] has four required methods and twenty-three defaulted ones. A wrapper
 /// implementing only the four would compile and silently answer the defaults
 /// for the tool it wraps — a [`PermissionLevel::Write`] tool would read as
 /// read-only, an admission gate would see the wrong
@@ -61,6 +61,10 @@ impl Tool for SharedTool {
 
     async fn execute(&self, args: Value) -> anyhow::Result<ToolResult> {
         self.0.execute(args).await
+    }
+
+    async fn prepare_authorization(&self, args: &Value) -> anyhow::Result<Option<Value>> {
+        self.0.prepare_authorization(args).await
     }
 
     async fn execute_with_options(
