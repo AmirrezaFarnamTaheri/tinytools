@@ -84,3 +84,7 @@ impl ToolDialect for XmlDialect {
         ToolCallFormat::Json
     }
 }
+
+#[cfg(test)]
+#[path = "xml_description_tests.rs"]
+mod description_tests;
