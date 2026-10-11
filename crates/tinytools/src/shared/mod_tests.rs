@@ -204,6 +204,34 @@ impl Tool for AsyncTargetOnly {
     }
 }
 
+struct AsyncTargetFailure;
+
+#[async_trait]
+impl Tool for AsyncTargetFailure {
+    fn name(&self) -> &'static str {
+        "async_target_failure"
+    }
+
+    fn description(&self) -> &'static str {
+        "Fails to resolve its target asynchronously"
+    }
+
+    fn parameters_schema(&self) -> Value {
+        json!({ "type": "object" })
+    }
+
+    async fn execute(&self, _args: Value) -> anyhow::Result<ToolResult> {
+        Ok(ToolResult::success("ok"))
+    }
+
+    async fn indirect_target_async(
+        &self,
+        _args: &Value,
+    ) -> anyhow::Result<Option<crate::IndirectCall>> {
+        anyhow::bail!("wrapped target unavailable")
+    }
+}
+
 /// A trivial run context, so the context-forwarding path can be observed.
 struct Run;
 
@@ -216,15 +244,31 @@ fn wrapped() -> SharedTool {
 #[tokio::test]
 async fn shared_wrapper_forwards_async_target_resolution() {
     let tool = SharedTool::new(Arc::new(AsyncTargetOnly));
-    let resolved = tool
-        .indirect_target_async(&json!({}))
+    let rules = crate::ToolRuleSet::single(crate::ToolRules::from_allow_deny(
+        Vec::<String>::new(),
+        ["owner_target"],
+    ));
+    let decision = rules
+        .evaluate_call_async(&tool, &crate::RuleContext::new(), &json!({}))
         .await
         .expect("wrapped target resolution succeeds");
 
-    assert_eq!(
-        resolved.map(|call| call.target.name),
-        Some("owner_target".to_owned())
+    assert!(
+        !decision.callable,
+        "wrapper target must be checked by rules"
     );
+}
+
+#[tokio::test]
+async fn shared_wrapper_forwards_async_target_resolution_errors() {
+    let tool = SharedTool::new(Arc::new(AsyncTargetFailure));
+    let rules = crate::ToolRuleSet::single(crate::ToolRules::allow_all());
+    let error = rules
+        .evaluate_call_async(&tool, &crate::RuleContext::new(), &json!({}))
+        .await
+        .expect_err("wrapped resolution failure must propagate");
+
+    assert_eq!(error.to_string(), "wrapped target unavailable");
 }
 
 #[test]
