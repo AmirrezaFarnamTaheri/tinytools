@@ -16,7 +16,8 @@ module map and the grammar table.
 | Tool vocabulary (`Tool`, `ToolSpec`, `ToolResult`) | `tinytools` |
 | Parsing, repair, streaming scrub, rendering, dialects | `tinytools-agent` |
 | Provider wire translation (native `tools` / `tool_calls`, SSE assembly, reasoning side-channels) | `tinyinference-llm` |
-| Dialect selection, call-id minting, argument validation policy, execution, unknown-tool policy, re-prompt nudges | the host (`tinyagents-harness`) |
+| Format vocabulary, dispatcher-name selection and native/XML fallback rule | `tinytools-agent::dialect` |
+| Configured dispatcher choice, provider capability lookup, call-id minting, argument validation policy, execution, unknown-tool policy, re-prompt nudges | the host (`tinyagents-harness`) |
 
 A format-specific string — a DSML marker, a Kimi sentinel, a Harmony channel
 token — belongs in exactly one grammar file under
@@ -61,3 +62,23 @@ and a `new` / `native` constructor; construct it through those.
 `CallSource` is `#[non_exhaustive]`; `dialect::ToolCallFormat` is not, and
 gained `Python` and `TypeScript`, so a consumer matching it exhaustively
 must add the arms when it takes this version.
+
+## Shared selection and legacy prompt compatibility
+
+The host supplies a dispatcher name and native-tool capability to
+ToolCallFormat::resolve. Explicit native, XML, P-Format, Python and TypeScript
+choices remain fixed; automatic and unknown names select native when supported
+and XML otherwise. Compact/code modes require explicit selection. Hosts retain
+ownership of configuration, capability discovery and their defaults; the enum's
+existing PFormat default does not impose that default on a host.
+
+The dialect module also owns recognition and heuristic stripping of unexecuted
+XML/JSON tool-call text. Marker-free responses remain byte-identical. The
+stripper removes XML spans and marker lines, without parsing multiline JSON.
+
+XmlDialect::description_protocol preserves the legacy protocol bytes for hosts
+whose catalogues contain descriptions and whose schemas arrive separately.
+Full-schema instructions remain unchanged. TinyAgents owns the description
+catalogue's framing and verifies the complete frozen channel-prompt output.
+
+Implementation sequence: [shared dialect ownership](../plans/shared-dialect-ownership.md).
