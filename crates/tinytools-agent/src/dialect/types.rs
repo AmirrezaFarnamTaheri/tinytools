@@ -344,3 +344,37 @@ pub enum ToolCallFormat {
     /// the prompt.
     TypeScript,
 }
+
+impl ToolCallFormat {
+    /// Resolve a dispatcher configuration name against provider support.
+    ///
+    /// Explicit formats remain authoritative. Automatic and unknown names
+    /// choose native calls when supported, otherwise JSON in XML tags.
+    /// Compact and code formats are opt-in.
+    #[must_use]
+    pub fn resolve(choice: &str, supports_native: bool) -> Self {
+        match choice {
+            "native" => Self::Native,
+            "xml" => Self::Json,
+            "pformat" => Self::PFormat,
+            "python" => Self::Python,
+            "typescript" => Self::TypeScript,
+            _ if supports_native => Self::Native,
+            _ => Self::Json,
+        }
+    }
+
+    /// The code grammar used by this format, if it is a code-call dialect.
+    #[must_use]
+    pub fn code_style(self) -> Option<crate::codecall::CodeStyle> {
+        match self {
+            Self::Python => Some(crate::codecall::CodeStyle::Python),
+            Self::TypeScript => Some(crate::codecall::CodeStyle::TypeScript),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "types_selection_tests.rs"]
+mod selection_tests;

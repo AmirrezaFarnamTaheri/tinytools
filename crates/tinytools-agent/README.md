@@ -58,3 +58,18 @@ Diagnostics carry lengths and names, never model output.
 The crate has no dependency on TinyAgents or an inference/provider runtime.
 The optional `tracing` feature emits diagnostics for parser recovery and
 transcript repair decisions.
+
+### Host prompt compatibility
+
+The dialect module exposes the shared tool-call format vocabulary.
+ToolCallFormat::resolve preserves explicit dispatcher names and chooses native
+or XML calls for automatic and unknown names according to provider support.
+Its code_style method selects Python or TypeScript grammars.
+
+The unexecuted-response detector and stripper recognise legacy XML and JSON
+marker text without executing it. Stripping is a lightweight heuristic, not a
+JSON parser; responses without markers are returned byte for byte.
+
+XmlDialect::description_protocol supplies the stable protocol block for hosts
+whose catalogue lists descriptions while schemas arrive separately. It leaves
+the existing full-schema instructions method unchanged.
