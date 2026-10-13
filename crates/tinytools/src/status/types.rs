@@ -109,7 +109,7 @@ pub const POLICY_DENIED_MARKER: &str = "[policy-denied]";
 /// matches the producer's wording instead of a copy of it.
 pub const MODULE_FAULT_MARKER: &str = "This is terminal for the running process";
 
-/// Marker prefixing a delegated task (a TinyComputer browser task) that ended
+/// Marker prefixing a delegated task (a `TinyComputer` browser task) that ended
 /// without finishing: it failed, or was cancelled under the caller. The task
 /// reports what it did and what to change, so the recovery policy gives the
 /// model one changed attempt rather than reading the task's own prose (a
