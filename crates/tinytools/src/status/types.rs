@@ -42,7 +42,7 @@ pub enum ToolLifecycleState {
 /// explanations in [`ClassifiedFailure`], not to internal error enums.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ToolFailureClass {
-    /// OpenHuman lacks an OS/tool permission it needs (e.g. file access).
+    /// `OpenHuman` lacks an OS/tool permission it needs (e.g. file access).
     MissingPermission,
     /// A required application or command is not installed / not available.
     MissingApp,
@@ -79,7 +79,7 @@ pub enum ToolFailureClass {
     InvalidArguments,
     /// A command ran and exited non-zero (or was killed by a signal). The
     /// tool worked; the program it ran reported failure, and its stdout/stderr
-    /// is data for the model, not a verdict about OpenHuman.
+    /// is data for the model, not a verdict about `OpenHuman`.
     CommandFailed,
     /// Could not be classified into any of the above.
     Unknown,
@@ -121,7 +121,7 @@ pub const TASK_FAILED_MARKER: &str = "[task-failed]";
 /// and action-needs-user-confirmation states".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FailureCategory {
-    /// Transient — safe for OpenHuman to retry on its own (bounded, in a later
+    /// Transient — safe for `OpenHuman` to retry on its own (bounded, in a later
     /// phase). `recoverable` on [`ClassifiedFailure`] is true iff this variant.
     Recoverable,
     /// Refused by policy. Not retried; the user must change settings to allow it.
@@ -155,7 +155,7 @@ pub struct ClassifiedFailure {
     pub cause_plain: String,
     /// Plain-language description of what to do next.
     pub next_action: String,
-    /// Whether OpenHuman may retry automatically. Always equal to
+    /// Whether `OpenHuman` may retry automatically. Always equal to
     /// `category == FailureCategory::Recoverable` — carried explicitly so
     /// serialized consumers don't have to re-derive it.
     pub recoverable: bool,
@@ -163,6 +163,7 @@ pub struct ClassifiedFailure {
 
 impl FailureCategory {
     /// Whether a failure in this category is safe to retry automatically.
+    #[must_use]
     pub fn is_recoverable(self) -> bool {
         matches!(self, FailureCategory::Recoverable)
     }
@@ -171,6 +172,7 @@ impl FailureCategory {
 impl ToolFailureClass {
     /// The category this class belongs to. Single source of truth for the
     /// class→category mapping used by [`super::classify`].
+    #[must_use]
     pub fn category(self) -> FailureCategory {
         match self {
             ToolFailureClass::ServiceUnavailable

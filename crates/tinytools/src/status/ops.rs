@@ -22,6 +22,7 @@ use super::types::{
 /// * `timed_out` — set by the executor when the failure was a deadline stop
 ///   (the message alone is not always reliable), which short-circuits to
 ///   [`ToolFailureClass::Timeout`].
+#[must_use]
 pub fn classify(error_text: &str, timed_out: bool) -> ClassifiedFailure {
     let class = classify_class(error_text, timed_out);
     describe(class)
@@ -54,6 +55,7 @@ fn opens_with_marker(text: &str, marker: &str) -> bool {
 
 /// The class-only half of [`classify`], split out so the ordering heuristics can
 /// be tested independently of the copy.
+#[allow(clippy::too_many_lines)]
 fn classify_class(error_text: &str, timed_out: bool) -> ToolFailureClass {
     let text = error_text.to_lowercase();
 
@@ -293,6 +295,7 @@ fn structural_class(text: &str) -> Option<ToolFailureClass> {
 /// round-tripping a synthetic message through [`classify`]. The copy is the
 /// user-facing English source string; the UI localizes by class, so keep these
 /// stable and jargon-free.
+#[must_use]
 pub fn describe(class: ToolFailureClass) -> ClassifiedFailure {
     let category = class.category();
     let (cause_plain, next_action) = match class {
