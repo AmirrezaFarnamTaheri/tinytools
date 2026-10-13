@@ -68,10 +68,6 @@ pub fn deferred_tool_names(tools: &[Box<dyn Tool>]) -> HashSet<String> {
         .collect()
 }
 
-#[cfg(test)]
-#[path = "mod_tests.rs"]
-mod test;
-
 /// The deferred set of a belt that opted into discovery: every
 /// [`ToolExposure::Deferred`] tool in `durable` and `synthesized`, plus the
 /// `Direct` tools its agent definition lists in `deferred_tools`.
@@ -97,3 +93,7 @@ pub fn deferred_set(
     }
     deferred
 }
+
+#[cfg(test)]
+#[path = "mod_tests.rs"]
+mod test;

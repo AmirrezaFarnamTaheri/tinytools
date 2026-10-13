@@ -1,6 +1,6 @@
 use super::{TaskProfile, TaskRiskLevel, ToolCapability, ToolPolicyAction, ToolPolicyDecision};
 use std::collections::{BTreeSet, HashMap, HashSet};
-use tinytools::{PermissionLevel, Tool};
+use crate::{PermissionLevel, Tool};
 
 /// Builds deterministic per-session policy snapshots from the active agent,
 /// channel, configured channel permissions, and available tool registry.
@@ -77,16 +77,6 @@ impl ToolPolicyEngine {
             } else {
                 ToolPolicyAction::Allow
             };
-            log::trace!(
-                target: "openhuman::tools::agent_policy",
-                "[tool-policy] classified tool name={} required={} allowed={} explicitly_hidden={} exceeds_permission={} action={:?}",
-                name,
-                required_permission,
-                allowed_permission,
-                explicitly_hidden,
-                exceeds_permission,
-                action
-            );
 
             let capability = ToolCapability {
                 name: name.clone(),
@@ -142,42 +132,19 @@ fn permission_for_channel(
         // per-channel defaults so the cap actually engages on the very
         // first boot after upgrade. Once any entry exists, unknown
         // channels fall back to ReadOnly (the `None` arm below).
-        log::debug!(
-            target: "openhuman::tools::agent_policy",
-            "[tool-policy] channel permissions empty; preserving legacy unrestricted surface channel={} (config migration seeds per-channel defaults on first boot)",
-            channel
-        );
         return PermissionLevel::Dangerous;
     }
 
     match channel_permissions.get(channel) {
         Some(raw) => match parse_permission_level(raw) {
             Some(permission) => {
-                log::debug!(
-                    target: "openhuman::tools::agent_policy",
-                    "[tool-policy] resolved channel permission channel={} raw={} permission={}",
-                    channel,
-                    raw,
-                    permission
-                );
                 permission
             }
             None => {
-                log::debug!(
-                    target: "openhuman::tools::agent_policy",
-                    "[tool-policy] invalid channel permission; falling back to readonly channel={} raw={}",
-                    channel,
-                    raw
-                );
                 PermissionLevel::ReadOnly
             }
         },
         None => {
-            log::debug!(
-                target: "openhuman::tools::agent_policy",
-                "[tool-policy] channel permission missing; falling back to readonly channel={}",
-                channel
-            );
             PermissionLevel::ReadOnly
         }
     }
@@ -194,12 +161,6 @@ fn parse_permission_level(value: &str) -> Option<PermissionLevel> {
         _ => None,
     };
     if parsed.is_none() {
-        log::trace!(
-            target: "openhuman::tools::agent_policy",
-            "[tool-policy] permission token did not match raw={} normalized={}",
-            value,
-            normalized
-        );
     }
     parsed
 }

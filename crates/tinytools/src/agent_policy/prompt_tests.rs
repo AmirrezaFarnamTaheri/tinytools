@@ -1,8 +1,8 @@
 use super::*;
-use crate::tools::agent_policy::ToolPolicyEngine;
+use crate::agent_policy::ToolPolicyEngine;
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
-use tinytools::{PermissionLevel, Tool, ToolResult};
+use crate::{PermissionLevel, Tool, ToolResult};
 
 struct PromptTestTool {
     name: String,
