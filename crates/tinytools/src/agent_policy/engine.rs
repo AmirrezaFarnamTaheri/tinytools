@@ -2,6 +2,7 @@ use super::{TaskProfile, TaskRiskLevel, ToolCapability, ToolPolicyAction, ToolPo
 use std::collections::{BTreeSet, HashMap, HashSet};
 use crate::{PermissionLevel, Tool};
 
+#[derive(Debug)]
 /// Builds deterministic per-session policy snapshots from the active agent,
 /// channel, configured channel permissions, and available tool registry.
 pub struct ToolPolicyEngine;
@@ -20,7 +21,7 @@ impl ToolPolicyEngine {
         tools: &[Box<dyn Tool>],
         visible_tool_names: &HashSet<String>,
     ) -> super::ToolPolicySession {
-        let tools: Vec<&dyn Tool> = tools.iter().map(|t| t.as_ref()).collect();
+        let tools: Vec<&dyn Tool> = tools.iter().map(std::convert::AsRef::as_ref).collect();
         Self::build_session_from_refs(
             agent_id,
             channel,

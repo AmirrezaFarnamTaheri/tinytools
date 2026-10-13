@@ -7,6 +7,8 @@
 //! system-prompt section. The engine decides nothing about *how* a denial is
 //! surfaced or approved: that stays with the host.
 
+#![allow(missing_docs)]
+
 mod engine;
 mod prompt;
 mod types;

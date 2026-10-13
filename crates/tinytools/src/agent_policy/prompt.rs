@@ -5,6 +5,7 @@ pub const TOOL_POLICY_BOUNDARY_HEADING: &str = "## Tool Policy Boundary";
 
 /// Render a compact system-prompt section that tells the model which tool
 /// boundary is active for this session.
+#[must_use]
 pub fn render_tool_policy_boundary(
     session: &ToolPolicySession,
     max_bytes: usize,

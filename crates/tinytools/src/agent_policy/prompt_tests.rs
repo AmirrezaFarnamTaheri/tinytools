@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used, clippy::unwrap_used)]
+
 use super::*;
 use crate::agent_policy::ToolPolicyEngine;
 use async_trait::async_trait;

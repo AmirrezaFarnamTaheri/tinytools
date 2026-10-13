@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used, clippy::unwrap_used)]
+
 use super::*;
 
 // These tests intentionally mutate the process-global denial buffer. Keep
@@ -7,13 +9,13 @@ use super::*;
 static DENIAL_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 fn clear_denials_for_test() {
-    let mut buf = RECENT_DENIALS.lock().unwrap_or_else(|p| p.into_inner());
+    let mut buf = RECENT_DENIALS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     buf.clear();
 }
 
 #[test]
 fn record_truncates_and_bounds() {
-    let _guard = DENIAL_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    let _guard = DENIAL_TEST_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     clear_denials_for_test();
     let long = "a".repeat(10_000);
     for _ in 0..(MAX_DENIALS + 5) {
@@ -27,7 +29,7 @@ fn record_truncates_and_bounds() {
 
 #[test]
 fn record_ignores_empty_tool() {
-    let _guard = DENIAL_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    let _guard = DENIAL_TEST_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     clear_denials_for_test();
     record("   ", "policy", "denied", "reason");
     // list() should not panic; we can't reliably assert length because tests may run in parallel.
@@ -36,7 +38,7 @@ fn record_ignores_empty_tool() {
 
 #[test]
 fn record_redacts_sensitive_reason_fragments() {
-    let _guard = DENIAL_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    let _guard = DENIAL_TEST_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     clear_denials_for_test();
     record(
         "tool.secret",

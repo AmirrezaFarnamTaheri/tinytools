@@ -14,6 +14,7 @@ pub enum TaskRiskLevel {
 }
 
 impl TaskRiskLevel {
+    #[must_use]
     pub fn from_allowed_permission(permission: PermissionLevel) -> Self {
         match permission {
             PermissionLevel::None | PermissionLevel::ReadOnly => Self::Low,
@@ -72,6 +73,7 @@ impl ToolPolicyDecision {
     ///
     /// It is the wrong question for `use_skill`. See
     /// [`Self::blocks_execution`].
+    #[must_use]
     pub fn is_denied(&self) -> bool {
         !matches!(self.action, ToolPolicyAction::Allow)
     }
@@ -90,6 +92,7 @@ impl ToolPolicyDecision {
     /// An unknown tool still lands here, because `decision_for` defaults absent
     /// names to `Deny`: a tool this session does not have is genuinely not
     /// callable, which is the distinction that keeps owner-only tools out.
+    #[must_use]
     pub fn blocks_execution(&self) -> bool {
         if matches!(
             self.action,
@@ -131,18 +134,22 @@ pub struct ToolPolicySession {
 }
 
 impl ToolPolicySession {
+    #[must_use]
     pub fn is_allowed(&self, tool_name: &str) -> bool {
         self.allowed_tool_names.contains(tool_name)
     }
 
+    #[must_use]
     pub fn has_restrictions(&self) -> bool {
         !self.blocked_tool_names.is_empty() || !self.hidden_tool_names.is_empty()
     }
 
+    #[must_use]
     pub fn restricted_tool_count(&self) -> usize {
         self.blocked_tool_names.len() + self.hidden_tool_names.len()
     }
 
+    #[must_use]
     pub fn visible_tool_names_for_prompt(&self) -> HashSet<String> {
         if !self.has_restrictions() {
             return HashSet::new();
@@ -154,6 +161,7 @@ impl ToolPolicySession {
         names
     }
 
+    #[must_use]
     pub fn decision_for(&self, tool_name: &str) -> ToolPolicyDecision {
         self.decisions
             .get(tool_name)
