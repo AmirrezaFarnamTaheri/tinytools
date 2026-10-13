@@ -180,6 +180,17 @@ pub(crate) struct Scan {
 }
 
 /// One left-to-right pass over `text`.
+/// Whether a block's opening marker, up to its first `>`, `{` or newline,
+/// carries a template pipe (`|` or fullwidth `｜`), as DSML, `<|tool_call>`,
+/// sentinel and Harmony markers do and `<tool_call>` / `<invoke name=…>` do
+/// not.
+fn opens_with_special_token(block: &str) -> bool {
+    block
+        .split(['>', '{', '\n'])
+        .next()
+        .is_some_and(|marker| marker.contains(['|', '｜']))
+}
+
 pub(crate) fn scan(text: &str, options: &ParseOptions<'_>, mode: ScanMode) -> Scan {
     let ranges = protected::fence_ranges(text);
     let mut out = Scan::default();
@@ -256,7 +267,12 @@ pub(crate) fn scan(text: &str, options: &ParseOptions<'_>, mode: ScanMode) -> Sc
                 match block.decoded {
                     Decoded::Calls(calls) => {
                         out.kept.push(from..block.start);
-                        out.calls.extend(calls);
+                        let special = opens_with_special_token(&text[block.start..block.end]);
+                        out.calls.extend(
+                            calls
+                                .into_iter()
+                                .map(|call| call.with_special_token(special)),
+                        );
                     }
                     Decoded::Malformed { body_chars } => {
                         out.kept.push(from..block.start);
