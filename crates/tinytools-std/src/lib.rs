@@ -14,6 +14,7 @@
 //!   that returns the vetted addresses for the caller to pin its connection to.
 //! - [`detect_tools`] — `PATH` probing and the read-only `detect_tools` tool.
 //! - [`sanitize`] — lexical sanitization and truncation for untrusted metadata.
+//! - [`timeout`] — tool timeout bounds, process-group kill and child reaping.
 //!
 //! # Example
 //!
@@ -37,4 +38,5 @@ pub mod file_state;
 pub mod filesystem;
 pub mod network;
 pub mod sanitize;
+pub mod timeout;
 pub mod url_guard;
