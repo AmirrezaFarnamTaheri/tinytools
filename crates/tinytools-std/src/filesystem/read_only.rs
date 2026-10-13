@@ -4,7 +4,7 @@
 //! edit a file needs its exact text: on live coding runs every summarized
 //! `cat` of a source file was followed by `juice_retrieve` of the whole
 //! original or a fresh `sed -n` read of the file. The summary bought nothing
-//! and cost a model call plus up to TinyJuice's 8-second summary timeout,
+//! and cost a model call plus up to `TinyJuice`'s 8-second summary timeout,
 //! which it hit on most attempts.
 //!
 //! The test is deliberately narrow: a file-reading tool, or a shell command
