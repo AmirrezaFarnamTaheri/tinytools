@@ -54,7 +54,7 @@ pub async fn output_or_kill(
 
 /// Capture a command with no deadline, killing its process group if the
 /// future is dropped. The child is reaped by an owned waiter even when the
-/// caller cancels; a scoped [`ProcessCleanup`] can await that waiter.
+/// caller cancels; a scoped [`super::ProcessCleanup`] can await that waiter.
 pub async fn output_unbounded(
     cmd: &mut tokio::process::Command,
 ) -> std::io::Result<std::process::Output> {
