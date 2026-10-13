@@ -105,6 +105,7 @@
 //! # }
 //! ```
 
+pub mod agent_policy;
 pub mod call;
 pub mod classification;
 pub mod collapse;
@@ -116,13 +117,19 @@ pub mod permission;
 pub mod policy;
 pub mod progress;
 pub mod rank;
+pub mod registry;
 pub mod result;
 pub mod rules;
 pub mod shared;
 pub mod spec;
+pub mod status;
 pub mod tool;
 pub mod workspace;
 
+pub use agent_policy::{
+    TaskProfile, TaskRiskLevel, ToolCapability, ToolPolicyAction, ToolPolicyDecision,
+    ToolPolicyEngine, ToolPolicySession, render_tool_policy_boundary,
+};
 pub use call::{
     InjectedToolArguments, ToolArgumentPreparationError, ToolCall, ToolCallId, ToolCallOptions,
     ToolInjectedArgument, ToolInjectedArgumentSource, ToolTimeout, prepare_tool_arguments,
@@ -136,7 +143,9 @@ pub use collapse::{
 };
 pub use command_output::{command_failure, render_command_failure, sandbox_exit_code};
 pub use context::ToolRunContext;
-pub use deferral::{deferred_tool_names, strip_deferred_from_visible};
+pub use deferral::{
+    TOOL_SEARCH_NAME, deferred_set, deferred_tool_names, strip_deferred_from_visible,
+};
 pub use naming::{
     ContextDetailOptions, context_detail_from_args, context_detail_from_args_with,
     humanize_tool_name,
@@ -148,6 +157,11 @@ pub use policy::{
 pub use progress::{ProgressSink, ToolProgress};
 pub use rank::{
     Bm25Index, Bm25Ranker, RankCandidate, RankContext, RankError, RankHit, ToolRanker, tokenize,
+};
+pub use registry::{
+    CapabilityProviderDiagnostics, McpAllowlistDiagnostics, McpServerAllowlistSummary,
+    McpWriteAuditHealth, RecentPolicyDenial, ToolPolicyDiagnostics, ToolPolicyPosture,
+    ToolRegistryEntry, ToolRegistryHealth, ToolRegistryList, ToolRegistryTransport,
 };
 pub use result::{FileData, ImageData, ToolContent, ToolControl, ToolErrorKind, ToolResult};
 pub use rules::{

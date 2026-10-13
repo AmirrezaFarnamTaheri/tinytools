@@ -750,3 +750,28 @@ fn remote_provider_timeout_uses_the_same_zero_and_none_defaults_as_http() {
         assert_eq!(timeout, Duration::from_secs(tool.timeout_secs));
     }
 }
+
+#[test]
+fn status_of_reads_the_leading_web_fetch_error_shape() {
+    assert_eq!(
+        status_of("HTTP 403 Forbidden from example.com; try another source\nbody"),
+        Some(403)
+    );
+    assert_eq!(
+        status_of("  HTTP 503 Service Unavailable from a.b; retry later"),
+        Some(503)
+    );
+}
+
+#[test]
+fn status_of_rejects_quoted_bare_or_non_error_statuses() {
+    assert_eq!(status_of("403 Forbidden"), None);
+    assert_eq!(status_of("HTTP 403"), None);
+    assert_eq!(status_of("HTTP 200 OK from example.com; fine"), None);
+    assert_eq!(status_of("HTTP 99 x from h; g"), None);
+    assert_eq!(status_of("HTTP 404 Not Found from two words; g"), None);
+    assert_eq!(
+        status_of("error\nHTTP 403 Forbidden from example.com; quoted"),
+        None
+    );
+}

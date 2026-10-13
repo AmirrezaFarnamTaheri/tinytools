@@ -34,14 +34,14 @@ regex = { workspace = true }
 # `stream` drives `curl`'s chunked download; `multipart` builds the `pushover` form.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "multipart"] }
 # Safe effective-credential executable checks for Unix PATH candidates.
-rustix = { version = "1", default-features = false, features = ["fs"] }
+rustix = { version = "1", default-features = false, features = ["fs", "process"] }
 serde_json = { workspace = true }
 # `curl` reports the SHA-256 of what it downloaded.
 sha2 = "0.11"
 tinytools = { path = "../tinytools", version = "0.5.0" }
 # `spawn_blocking` keeps synchronous system DNS resolution off async executor threads;
 # `fs`/`process`/`time` serve the filesystem tools.
-tokio = { version = "1", default-features = false, features = ["rt", "sync", "fs", "process", "time", "io-util"] }
+tokio = { version = "1", default-features = false, features = ["rt", "sync", "fs", "process", "time", "io-util", "macros"] }
 tracing = { workspace = true }
 # `grep` and `glob_search` directory walks.
 walkdir = "2"

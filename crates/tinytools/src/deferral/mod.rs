@@ -68,6 +68,32 @@ pub fn deferred_tool_names(tools: &[Box<dyn Tool>]) -> HashSet<String> {
         .collect()
 }
 
+/// The deferred set of a belt that opted into discovery: every
+/// [`ToolExposure::Deferred`] tool in `durable` and `synthesized`, plus the
+/// `Direct` tools its agent definition lists in `deferred_tools`.
+///
+/// Exposure is a property of the tool and applies to every agent; a
+/// definition's `deferred_tools` is the per-agent half. It takes a tool that
+/// other belts keep advertised (`file_read` for a coding worker) off this
+/// agent's wire only, where it stays registered, searchable through
+/// `tool_search`, and callable by its own name. A requested name that is not
+/// registered, or is `Hidden`, is ignored: deferral only ever subtracts.
+#[must_use]
+pub fn deferred_set(
+    durable: &[Box<dyn Tool>],
+    synthesized: &[Box<dyn Tool>],
+    requested: &[String],
+) -> HashSet<String> {
+    let mut deferred = deferred_tool_names(durable);
+    deferred.extend(deferred_tool_names(synthesized));
+    for tool in durable.iter().chain(synthesized.iter()) {
+        if tool.exposure() == ToolExposure::Direct && requested.iter().any(|r| r == tool.name()) {
+            deferred.insert(tool.name().to_string());
+        }
+    }
+    deferred
+}
+
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod test;

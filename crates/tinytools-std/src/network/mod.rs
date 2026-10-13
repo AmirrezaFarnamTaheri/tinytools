@@ -35,7 +35,7 @@ mod curl;
 mod gate;
 mod http_request;
 mod pushover;
-mod web_fetch;
+pub mod web_fetch;
 
 #[cfg(test)]
 #[path = "contract_tests.rs"]
