@@ -219,4 +219,3 @@ pub fn kill_process_group(pid: u32) {
         let _ = pid;
     }
 }
-

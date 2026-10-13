@@ -8,6 +8,12 @@ fn sh(script: &str) -> tokio::process::Command {
     cmd
 }
 
+#[cfg(unix)]
+fn process_exists(pid: i32) -> bool {
+    rustix::process::Pid::from_raw(pid)
+        .is_some_and(|pid| rustix::process::test_kill_process(pid).is_ok())
+}
+
 #[test]
 fn configure_pushes_the_inherited_timeout_into_the_global() {
     let global = configure(TimeoutSettings::with_inherited_secs(77));
@@ -212,15 +218,15 @@ fn resolve_effective_table() {
 #[cfg(unix)]
 #[tokio::test]
 async fn a_timed_out_command_takes_its_whole_process_group_with_it() {
-    let dir = tempfile::tempdir().unwrap().keep().join(format!("oh-pgkill-{}", std::process::id()));
+    let dir = tempfile::tempdir()
+        .unwrap()
+        .keep()
+        .join(format!("oh-pgkill-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let pidfile = dir.join("grandchild.pid");
     // `sleep 30 &` is a grandchild in the shell's own process group; `wait`
     // keeps the shell alive past the deadline.
-    let mut cmd = sh(&format!(
-        "sleep 30 & echo $! > {}; wait",
-        pidfile.display()
-    ));
+    let mut cmd = sh(&format!("sleep 30 & echo $! > {}; wait", pidfile.display()));
     let result = output_or_kill(&mut cmd, Duration::from_millis(700)).await;
     assert!(result.is_err(), "the deadline must fire on a 30s sleep");
 
@@ -246,9 +252,10 @@ async fn a_timed_out_command_takes_its_whole_process_group_with_it() {
             let group = rustix::process::Pid::from_raw(grandchild)
                 .and_then(|pid| rustix::process::getpgid(Some(pid)).ok());
             if let Some(group) = group.map(|g| g.as_raw_nonzero().get() as u32) {
-              if !group_exit::is_active_member(&stat, group) {
-                gone = true;
-                break;
+                if !group_exit::is_active_member(&stat, group) {
+                    gone = true;
+                    break;
+                }
             }
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
@@ -262,16 +269,16 @@ async fn a_timed_out_command_takes_its_whole_process_group_with_it() {
 #[cfg(unix)]
 #[tokio::test]
 async fn a_shell_family_child_dies_with_a_dropped_future() {
-    let dir = tempfile::tempdir().unwrap().keep().join(format!("oh-dropkill-{}", std::process::id()));
+    let dir = tempfile::tempdir()
+        .unwrap()
+        .keep()
+        .join(format!("oh-dropkill-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let pidfile = dir.join("child.pid");
-    let mut cmd = sh(&format!(
-        "echo $$ > {}; sleep 30",
-        pidfile.display()
-    ));
+    let mut cmd = sh(&format!("echo $$ > {}; sleep 30", pidfile.display()));
     // `timeout` takes the future by value and drops it when the deadline
     // passes -- exactly the abandoned-future path a cancelled tool call takes.
-    let _ = tokio::time::timeout(Duration::from_millis(300), cmd.output()).await;
+    let _ = tokio::time::timeout(Duration::from_millis(300), output_unbounded(&mut cmd)).await;
     let shell: i32 = loop {
         if let Ok(text) = std::fs::read_to_string(&pidfile) {
             if let Ok(pid) = text.trim().parse() {
@@ -291,7 +298,6 @@ async fn a_shell_family_child_dies_with_a_dropped_future() {
     let _ = std::fs::remove_dir_all(&dir);
     assert!(gone, "shell {shell} survived its dropped future");
 }
-
 
 /// A reaped scope: after the turn future is dropped, `ProcessCleanup::wait`
 /// returns only once the sleeping child group is gone.
@@ -320,7 +326,10 @@ async fn process_cleanup_waits_for_a_cancelled_sleeping_group() {
 
 #[tokio::test]
 async fn command_environment_replaces_the_child_environment() {
-    let env = CommandEnvironment::new([("PATH".to_string(), "/usr/bin:/bin".to_string()), ("ONLY_THIS".to_string(), "1".to_string())]);
+    let env = CommandEnvironment::new([
+        ("PATH".to_string(), "/usr/bin:/bin".to_string()),
+        ("ONLY_THIS".to_string(), "1".to_string()),
+    ]);
     let out = env
         .scope(async {
             let mut cmd = sh("echo ${ONLY_THIS:-missing}-${HOME:-nohome}");

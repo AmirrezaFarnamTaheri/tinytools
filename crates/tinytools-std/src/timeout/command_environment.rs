@@ -7,7 +7,7 @@ tokio::task_local! { static ACTIVE: CommandEnvironment; }
 /// A complete, turn-owned environment for builtin tool subprocesses.
 /// This never mutates the host process environment. Host-spawned tasks must
 /// explicitly inherit its scope. Interpreter pools cannot accept scoped work.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CommandEnvironment(Arc<BTreeMap<String, String>>);
 
 impl CommandEnvironment {

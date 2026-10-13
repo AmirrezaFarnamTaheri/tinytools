@@ -97,9 +97,7 @@ impl TimeoutSettings {
                 let rounded = req.saturating_add(999) / 1000 * 1000;
                 let budget = rounded.clamp(self.min_ms, self.max_ms);
                 ResolvedTimeout {
-                    deadline: Some(Duration::from_millis(
-                        budget.saturating_add(self.grace_ms),
-                    )),
+                    deadline: Some(Duration::from_millis(budget.saturating_add(self.grace_ms))),
                     budget_ms: budget,
                 }
             }

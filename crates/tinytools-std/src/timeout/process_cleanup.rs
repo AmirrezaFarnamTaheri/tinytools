@@ -12,7 +12,7 @@ tokio::task_local! {
 /// Command waiters belonging to one turn. Clone before scoping the turn;
 /// after dropping the turn future, [`wait`](Self::wait) awaits their reaping.
 /// Tasks spawned by a host tool must explicitly inherit this scope.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct ProcessCleanup(Arc<Mutex<Vec<watch::Receiver<bool>>>>);
 
 impl ProcessCleanup {
