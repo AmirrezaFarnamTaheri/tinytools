@@ -75,13 +75,6 @@ impl ParsedToolCall {
         }
     }
 
-    /// Marks whether the call came from a special-token block.
-    #[must_use]
-    pub fn with_special_token(mut self, special_token: bool) -> Self {
-        self.special_token = special_token;
-        self
-    }
-
     /// A call the provider reported natively, with its id.
     #[must_use]
     pub fn native(id: impl Into<String>, name: impl Into<String>, arguments: Value) -> Self {

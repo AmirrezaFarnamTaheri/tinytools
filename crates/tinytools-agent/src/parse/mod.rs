@@ -191,9 +191,10 @@ fn mark_special_token(
         .split(['>', '{', '\n'])
         .next()
         .is_some_and(|marker| marker.contains(['|', '｜']));
-    calls
-        .into_iter()
-        .map(move |call| call.with_special_token(special))
+    calls.into_iter().map(move |mut call| {
+        call.special_token = special;
+        call
+    })
 }
 
 /// One left-to-right pass over `text`.
