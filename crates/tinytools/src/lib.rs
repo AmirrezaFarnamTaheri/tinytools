@@ -119,8 +119,8 @@ pub mod rank;
 pub mod result;
 pub mod rules;
 pub mod shared;
-pub mod status;
 pub mod spec;
+pub mod status;
 pub mod tool;
 pub mod workspace;
 

@@ -67,10 +67,6 @@ fn classify_class(error_text: &str, timed_out: bool) -> ToolFailureClass {
     //     The `timed_out` flag is not consulted here: the only live caller
     //     derives it by sniffing the same text.
     if let Some(class) = structural_class(&text) {
-        tracing::debug!(
-            ?class,
-            "[tool_status::classify] matched structural result shape"
-        );
         return class;
     }
 
@@ -84,7 +80,6 @@ fn classify_class(error_text: &str, timed_out: bool) -> ToolFailureClass {
     //    `POLICY_BLOCKED_MARKER` — a hard, cross-turn block: the action is
     //    refused by the user's safety/autonomy policy (BlockedByPolicy).
     if text.contains(POLICY_BLOCKED_MARKER) {
-        tracing::debug!("[tool_status::classify] matched POLICY_BLOCKED_MARKER -> BlockedByPolicy");
         return ToolFailureClass::BlockedByPolicy;
     }
     //    `POLICY_DENIED_MARKER` — a this-turn denial: the user answered "no" at
@@ -94,12 +89,8 @@ fn classify_class(error_text: &str, timed_out: bool) -> ToolFailureClass {
     //    expiry reads "approval expired", an explicit refusal reads "declined".
     if text.contains(POLICY_DENIED_MARKER) {
         if contains_any(&text, &["timed out", "timeout", "expired"]) {
-            tracing::debug!(
-                "[tool_status::classify] matched POLICY_DENIED_MARKER + expiry phrase -> ApprovalExpired"
-            );
             return ToolFailureClass::ApprovalExpired;
         }
-        tracing::debug!("[tool_status::classify] matched POLICY_DENIED_MARKER -> Denied");
         return ToolFailureClass::Denied;
     }
     //    `NOT_FOUND_MARKER` / `UNSUPPORTED_MARKER` — the producer knew the call
@@ -111,11 +102,9 @@ fn classify_class(error_text: &str, timed_out: bool) -> ToolFailureClass {
     //    stderr, an upstream body or an interpolated id that merely contains
     //    the marker text must not turn a failure permanent.
     if opens_with_marker(&text, super::types::NOT_FOUND_MARKER) {
-        tracing::debug!("[tool_status::classify] matched NOT_FOUND_MARKER -> NotFound");
         return ToolFailureClass::NotFound;
     }
     if opens_with_marker(&text, super::types::UNSUPPORTED_MARKER) {
-        tracing::debug!("[tool_status::classify] matched UNSUPPORTED_MARKER -> Unsupported");
         return ToolFailureClass::Unsupported;
     }
 
