@@ -397,3 +397,28 @@ async fn process_cleanup_reports_active_only_inside_its_scope() {
         .await;
     cleanup.wait().await;
 }
+
+/// A hold taken inside a turn's scope keeps `wait` pending until dropped, so
+/// detached host work can finish its own cleanup before cancellation is
+/// acknowledged. A hold taken outside any scope registers nothing.
+#[tokio::test]
+async fn a_cleanup_hold_keeps_wait_pending_until_dropped() {
+    let cleanup = ProcessCleanup::default();
+    let hold = cleanup.scope(async { ProcessCleanup::hold() }).await;
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), cleanup.wait())
+            .await
+            .is_err(),
+        "wait must not return while the hold is alive"
+    );
+    drop(hold);
+    tokio::time::timeout(Duration::from_secs(1), cleanup.wait())
+        .await
+        .expect("wait returns once the hold is dropped");
+
+    let unscoped = ProcessCleanup::default();
+    let _outside = ProcessCleanup::hold();
+    tokio::time::timeout(Duration::from_secs(1), unscoped.wait())
+        .await
+        .expect("a hold outside any scope registers nothing");
+}
