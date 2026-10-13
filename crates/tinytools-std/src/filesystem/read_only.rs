@@ -1,7 +1,6 @@
 //! Which tool calls only read files the agent can read again.
 //!
-//! A host skips an LLM summary of tool output
-//! for these. A summary of source code is a paraphrase, and an agent about to
+//! A host skips an LLM summary of tool output for these. A summary of source code is a paraphrase, and an agent about to
 //! edit a file needs its exact text: on live coding runs every summarized
 //! `cat` of a source file was followed by `juice_retrieve` of the whole
 //! original or a fresh `sed -n` read of the file. The summary bought nothing
@@ -19,7 +18,7 @@ use serde_json::Value;
 /// Tools whose whole job is returning a file's contents.
 const FILE_READ_TOOLS: &[&str] = &["file_read", "read_file", "read", "view_file"];
 
-/// Shell tools, by the names OpenHuman and common harness adapters use.
+/// Shell tools, by the names hosts and common harness adapters use.
 const SHELL_TOOLS: &[&str] = &["shell", "bash", "exec", "run_command", "terminal"];
 
 /// Programs that print a file (`sed` only without in-place editing).
@@ -28,9 +27,9 @@ const READERS: &[&str] = &["cat", "head", "tail", "nl", "sed"];
 /// Programs allowed beside the readers: navigation and separators.
 const NEUTRAL: &[&str] = &["cd", "echo", "printf", "true", "pwd"];
 
-#[must_use]
 /// Whether this call only prints files the agent can re-read (see the module
 /// docs). `use_skill` is followed into the tool it wraps.
+#[must_use]
 pub fn is_read_only_call(tool_name: &str, args: &Value) -> bool {
     let (name, args) = if tool_name == "use_skill" {
         match (args.get("tool").and_then(Value::as_str), args.get("args")) {
@@ -52,11 +51,11 @@ pub fn is_read_only_call(tool_name: &str, args: &Value) -> bool {
         .is_some_and(is_read_only_command)
 }
 
-#[must_use]
 /// Whether a shell command line only prints files: every segment (split on
 /// `&&`, `||`, `;`, `|` and newlines) runs a reader or a neutral program, at
 /// least one runs a reader, and nothing redirects, substitutes or feeds a
 /// heredoc.
+#[must_use]
 pub fn is_read_only_command(command: &str) -> bool {
     if command.contains(['>', '<', '`', '$']) {
         return false;
