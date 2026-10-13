@@ -55,6 +55,11 @@ pub struct ParsedToolCall {
     pub id: Option<String>,
     /// The grammar the call was recovered through.
     pub source: CallSource,
+    /// Whether the block's opening marker is a chat-template special token
+    /// (`<｜DSML｜invoke`, `<|tool_call>`, `<｜tool▁call▁begin｜>`,
+    /// `<|channel|>`): something a model emits as a call but that quoted prose
+    /// does not contain. `false` for plain `<tool_call>` and `<invoke>`.
+    pub special_token: bool,
 }
 
 impl ParsedToolCall {
@@ -66,6 +71,7 @@ impl ParsedToolCall {
             arguments,
             id: None,
             source,
+            special_token: false,
         }
     }
 
@@ -77,6 +83,7 @@ impl ParsedToolCall {
             arguments,
             id: Some(id.into()),
             source: CallSource::Native,
+            special_token: false,
         }
     }
 }

@@ -261,3 +261,46 @@ fn json_scanners_cover_common_edge_cases() {
     assert!(find_json_end("{\"escaped\":\"\\\\\"}\"}tail").is_some());
     assert!(find_json_end("{\"unfinished\": true").is_none());
 }
+
+/// openhuman#6733: a call is marked `special_token` only when its block opens
+/// with a chat-template special token, which quoted prose does not contain.
+#[test]
+fn special_token_marks_only_template_token_openers() {
+    for (reply, special) in [
+        (
+            "<｜DSML｜invoke name=\"lookup\"><｜DSML｜parameter name=\"q\" string=\"true\">x</｜DSML｜parameter></｜DSML｜invoke>",
+            true,
+        ),
+        (
+            r#"<|tool_call>call:{"name": "lookup", "arguments": {"q": "x"}}<tool_call|>"#,
+            true,
+        ),
+        (
+            "<｜tool▁call▁begin｜>lookup<｜tool▁sep｜>{\"q\":\"x\"}<｜tool▁call▁end｜>",
+            true,
+        ),
+        (
+            "<|channel|>commentary to=functions.lookup <|constrain|>json<|message|>{\"q\":\"x\"}<|call|>",
+            true,
+        ),
+        (
+            r#"Wrap it like <tool_call>{"name": "lookup", "arguments": {"q": "x"}}</tool_call> please."#,
+            false,
+        ),
+        (
+            "<invoke name=\"lookup\"><parameter name=\"q\">x</parameter></invoke>",
+            false,
+        ),
+    ] {
+        let (_, calls) = parse(reply);
+        assert_eq!(calls.len(), 1, "{reply}");
+        assert_eq!(calls[0].special_token, special, "{reply}");
+
+        // The stream scrubber shares the engine, so it marks calls alike.
+        let mut scrubber = crate::StreamScrubber::new();
+        let mut streamed = scrubber.feed(reply).calls;
+        streamed.extend(scrubber.flush().calls);
+        assert_eq!(streamed.len(), 1, "streamed: {reply}");
+        assert_eq!(streamed[0].special_token, special, "streamed: {reply}");
+    }
+}

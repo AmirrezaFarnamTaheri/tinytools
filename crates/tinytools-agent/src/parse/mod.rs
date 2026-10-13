@@ -179,6 +179,24 @@ pub(crate) struct Scan {
     pub(crate) pending: Option<usize>,
 }
 
+/// Marks `calls` as special-token when their block's opening marker, up to
+/// its first `>`, `{` or newline, carries a template pipe (`|` or fullwidth
+/// `｜`), as DSML, `<|tool_call>`, sentinel and Harmony markers do and
+/// `<tool_call>` / `<invoke name=…>` do not.
+fn mark_special_token(
+    calls: Vec<ParsedToolCall>,
+    block: &str,
+) -> impl Iterator<Item = ParsedToolCall> {
+    let special = block
+        .split(['>', '{', '\n'])
+        .next()
+        .is_some_and(|marker| marker.contains(['|', '｜']));
+    calls.into_iter().map(move |mut call| {
+        call.special_token = special;
+        call
+    })
+}
+
 /// One left-to-right pass over `text`.
 pub(crate) fn scan(text: &str, options: &ParseOptions<'_>, mode: ScanMode) -> Scan {
     let ranges = protected::fence_ranges(text);
@@ -256,7 +274,8 @@ pub(crate) fn scan(text: &str, options: &ParseOptions<'_>, mode: ScanMode) -> Sc
                 match block.decoded {
                     Decoded::Calls(calls) => {
                         out.kept.push(from..block.start);
-                        out.calls.extend(calls);
+                        out.calls
+                            .extend(mark_special_token(calls, &text[block.start..block.end]));
                     }
                     Decoded::Malformed { body_chars } => {
                         out.kept.push(from..block.start);
