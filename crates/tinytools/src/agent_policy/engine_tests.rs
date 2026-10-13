@@ -1,9 +1,9 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use super::*;
+use crate::{PermissionLevel, Tool, ToolResult};
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
-use crate::{PermissionLevel, Tool, ToolResult};
 
 struct PolicyTestTool {
     name: &'static str,

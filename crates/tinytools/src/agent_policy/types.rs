@@ -1,5 +1,5 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
 use crate::PermissionLevel;
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 const NO_TOOLS_ALLOWED_SENTINEL: &str = "__openhuman_no_policy_allowed_tools__";
 

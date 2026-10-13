@@ -21,7 +21,7 @@ pub fn record(tool_name: &str, policy: &str, action: &str, reason: &str) {
 
     let timestamp_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis() as i64);
+        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX));
 
     let record = RecentPolicyDenial {
         timestamp_ms,
@@ -39,7 +39,9 @@ pub fn record(tool_name: &str, policy: &str, action: &str, reason: &str) {
         reason,
     };
 
-    let mut buf = RECENT_DENIALS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut buf = RECENT_DENIALS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     buf.push_front(record);
     while buf.len() > MAX_DENIALS {
         buf.pop_back();
@@ -48,7 +50,9 @@ pub fn record(tool_name: &str, policy: &str, action: &str, reason: &str) {
 
 pub fn list(limit: usize) -> Vec<RecentPolicyDenial> {
     let limit = limit.min(MAX_DENIALS);
-    let buf = RECENT_DENIALS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let buf = RECENT_DENIALS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     buf.iter().take(limit).cloned().collect()
 }
 

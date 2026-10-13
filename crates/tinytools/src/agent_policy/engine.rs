@@ -1,6 +1,6 @@
 use super::{TaskProfile, TaskRiskLevel, ToolCapability, ToolPolicyAction, ToolPolicyDecision};
-use std::collections::{BTreeSet, HashMap, HashSet};
 use crate::{PermissionLevel, Tool};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 #[derive(Debug)]
 /// Builds deterministic per-session policy snapshots from the active agent,
