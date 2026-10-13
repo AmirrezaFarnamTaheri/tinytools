@@ -319,7 +319,7 @@ async fn process_cleanup_waits_for_a_cancelled_sleeping_group() {
                     let mut cmd = sh("sleep 30 & wait");
                     let _ = output_unbounded(&mut cmd).await;
                 })
-                .await
+                .await;
         })
     };
     tokio::time::sleep(Duration::from_millis(300)).await;
