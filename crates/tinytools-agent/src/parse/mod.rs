@@ -179,18 +179,24 @@ pub(crate) struct Scan {
     pub(crate) pending: Option<usize>,
 }
 
-/// One left-to-right pass over `text`.
-/// Whether a block's opening marker, up to its first `>`, `{` or newline,
-/// carries a template pipe (`|` or fullwidth `｜`), as DSML, `<|tool_call>`,
-/// sentinel and Harmony markers do and `<tool_call>` / `<invoke name=…>` do
-/// not.
-fn opens_with_special_token(block: &str) -> bool {
-    block
+/// Marks `calls` as special-token when their block's opening marker, up to
+/// its first `>`, `{` or newline, carries a template pipe (`|` or fullwidth
+/// `｜`), as DSML, `<|tool_call>`, sentinel and Harmony markers do and
+/// `<tool_call>` / `<invoke name=…>` do not.
+fn mark_special_token(
+    calls: Vec<ParsedToolCall>,
+    block: &str,
+) -> impl Iterator<Item = ParsedToolCall> {
+    let special = block
         .split(['>', '{', '\n'])
         .next()
-        .is_some_and(|marker| marker.contains(['|', '｜']))
+        .is_some_and(|marker| marker.contains(['|', '｜']));
+    calls
+        .into_iter()
+        .map(move |call| call.with_special_token(special))
 }
 
+/// One left-to-right pass over `text`.
 pub(crate) fn scan(text: &str, options: &ParseOptions<'_>, mode: ScanMode) -> Scan {
     let ranges = protected::fence_ranges(text);
     let mut out = Scan::default();
@@ -267,12 +273,8 @@ pub(crate) fn scan(text: &str, options: &ParseOptions<'_>, mode: ScanMode) -> Sc
                 match block.decoded {
                     Decoded::Calls(calls) => {
                         out.kept.push(from..block.start);
-                        let special = opens_with_special_token(&text[block.start..block.end]);
-                        out.calls.extend(
-                            calls
-                                .into_iter()
-                                .map(|call| call.with_special_token(special)),
-                        );
+                        out.calls
+                            .extend(mark_special_token(calls, &text[block.start..block.end]));
                     }
                     Decoded::Malformed { body_chars } => {
                         out.kept.push(from..block.start);
