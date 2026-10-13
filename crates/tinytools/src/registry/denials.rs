@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::types::RecentPolicyDenial;
+use super::RecentPolicyDenial;
 
 const MAX_DENIALS: usize = 50;
 const MAX_REASON_CHARS: usize = 240;

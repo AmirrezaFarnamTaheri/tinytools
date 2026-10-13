@@ -1,7 +1,7 @@
 use serde::Serialize;
 use serde_json::Value;
 
-/// Serialized discovery metadata for one OpenHuman tool surface.
+/// Serialized discovery metadata for one tool surface.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ToolRegistryEntry {
     /// Stable unique registry id, such as `memory.recall` or `tools.web_search`.
@@ -12,7 +12,7 @@ pub struct ToolRegistryEntry {
     pub title: String,
     /// Short description suitable for agents and dashboards.
     pub description: String,
-    /// Registry entry schema/version marker, currently the core crate version.
+    /// Registry entry schema/version marker, set by the host (currently its core crate version).
     pub version: String,
     /// Transport used to call the tool.
     pub transport: ToolRegistryTransport,
@@ -52,7 +52,7 @@ pub enum ToolRegistryHealth {
     Unknown,
 }
 
-/// Response payload for `openhuman.tool_registry_list`.
+/// Response payload for a tool-registry listing.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ToolRegistryList {
     /// Sorted registry entries.

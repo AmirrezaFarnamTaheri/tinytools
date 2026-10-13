@@ -127,7 +127,7 @@ fn permission_for_channel(
         // policy yet" — keep the legacy unrestricted surface so existing
         // installs (and unit fixtures that don't seed the map) keep
         // working. The hardening lands at the config layer:
-        // [`AgentConfig::migrate_channel_permissions_if_legacy`] runs at
+        // [the host's legacy-config migration] runs at
         // startup on legacy installs and seeds the map with safe
         // per-channel defaults so the cap actually engages on the very
         // first boot after upgrade. Once any entry exists, unknown
@@ -137,32 +137,23 @@ fn permission_for_channel(
 
     match channel_permissions.get(channel) {
         Some(raw) => match parse_permission_level(raw) {
-            Some(permission) => {
-                permission
-            }
-            None => {
-                PermissionLevel::ReadOnly
-            }
+            Some(permission) => permission,
+            None => PermissionLevel::ReadOnly,
         },
-        None => {
-            PermissionLevel::ReadOnly
-        }
+        None => PermissionLevel::ReadOnly,
     }
 }
 
 fn parse_permission_level(value: &str) -> Option<PermissionLevel> {
     let normalized = value.trim().to_ascii_lowercase().replace(['-', '_'], "");
-    let parsed = match normalized.as_str() {
+    match normalized.as_str() {
         "none" => Some(PermissionLevel::None),
         "readonly" | "read" => Some(PermissionLevel::ReadOnly),
         "write" => Some(PermissionLevel::Write),
         "execute" | "exec" => Some(PermissionLevel::Execute),
         "dangerous" | "danger" => Some(PermissionLevel::Dangerous),
         _ => None,
-    };
-    if parsed.is_none() {
     }
-    parsed
 }
 
 #[cfg(test)]
