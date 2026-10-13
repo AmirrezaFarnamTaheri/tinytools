@@ -131,8 +131,14 @@ async fn collect_command_output(
     use tokio::io::AsyncReadExt;
 
     let mut group = CommandGroup(child.id());
-    let mut stdout = child.stdout.take().expect("command stdout is piped");
-    let mut stderr = child.stderr.take().expect("command stderr is piped");
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| std::io::Error::other("command stdout is not piped"))?;
+    let mut stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| std::io::Error::other("command stderr is not piped"))?;
     let mut stdout_bytes = Vec::new();
     let mut stderr_bytes = Vec::new();
     {

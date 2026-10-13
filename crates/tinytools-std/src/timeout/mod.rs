@@ -7,6 +7,13 @@
 //! - [`ProcessCleanup`]: lets an embedder await reaping after cancelling a turn.
 //! - [`CommandEnvironment`]: a turn-owned child environment, never the host's.
 
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::ignored_unit_patterns,
+    clippy::struct_field_names,
+    clippy::collapsible_if
+)]
+
 mod command_environment;
 mod group_exit;
 mod output;

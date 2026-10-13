@@ -12,10 +12,12 @@ pub struct CommandEnvironment(Arc<BTreeMap<String, String>>);
 
 impl CommandEnvironment {
     /// Own the exact variables permitted in child processes.
+    #[must_use]
     pub fn new(env: impl IntoIterator<Item = (String, String)>) -> Self {
         Self(Arc::new(env.into_iter().collect()))
     }
     /// Whether this task requires its own child environment.
+    #[must_use]
     pub fn is_active() -> bool {
         ACTIVE.try_with(|_| ()).is_ok()
     }
@@ -25,6 +27,7 @@ impl CommandEnvironment {
     }
     /// Read a functional child variable from the scoped map, falling back to
     /// the process only when no map was supplied.
+    #[must_use]
     pub fn var_os(name: &str) -> Option<std::ffi::OsString> {
         ACTIVE
             .try_with(|environment| environment.0.get(name).map(Into::into))

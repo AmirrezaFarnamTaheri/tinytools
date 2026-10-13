@@ -19,6 +19,7 @@ impl ProcessCleanup {
     /// Whether the current task must acknowledge owned subprocess cleanup.
     /// Interpreter pools have no per-job cancellation acknowledgement and
     /// therefore cannot accept work from this scope.
+    #[must_use]
     pub fn is_active() -> bool {
         ACTIVE.try_with(|_| ()).is_ok()
     }

@@ -1,3 +1,9 @@
+#![allow(
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::cast_sign_loss
+)]
 use super::*;
 use std::time::Duration;
 use tinytools::ToolTimeout;
