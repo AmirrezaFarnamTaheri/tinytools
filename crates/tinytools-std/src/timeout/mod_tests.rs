@@ -344,3 +344,56 @@ async fn command_environment_replaces_the_child_environment() {
         .await;
     assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "1-nohome");
 }
+
+#[tokio::test]
+async fn command_environment_scopes_variable_lookup() {
+    assert!(!CommandEnvironment::is_active());
+    let env = CommandEnvironment::new([("SCOPED_ONLY".to_string(), "yes".to_string())]);
+    env.scope(async {
+        assert!(CommandEnvironment::is_active());
+        assert_eq!(
+            CommandEnvironment::var_os("SCOPED_ONLY").unwrap(),
+            std::ffi::OsString::from("yes")
+        );
+        assert_eq!(CommandEnvironment::var("SCOPED_ONLY").unwrap(), "yes");
+        assert!(CommandEnvironment::var_os("PATH").is_none());
+        assert!(CommandEnvironment::var("PATH").is_err());
+    })
+    .await;
+    assert!(CommandEnvironment::var_os("PATH").is_some());
+    assert!(CommandEnvironment::var("PATH").is_ok());
+}
+
+#[tokio::test]
+async fn explicit_command_env_overrides_and_removals_survive_the_scoped_base() {
+    let env = CommandEnvironment::new([
+        ("PATH".to_string(), "/usr/bin:/bin".to_string()),
+        ("BASE".to_string(), "base".to_string()),
+        ("DROP".to_string(), "x".to_string()),
+    ]);
+    let out = env
+        .scope(async {
+            let mut cmd = sh("echo $BASE-$EXTRA-${DROP:-dropped}");
+            cmd.env("BASE", "override")
+                .env("EXTRA", "e")
+                .env_remove("DROP");
+            output_unbounded(&mut cmd).await.unwrap()
+        })
+        .await;
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout).trim(),
+        "override-e-dropped"
+    );
+}
+
+#[tokio::test]
+async fn process_cleanup_reports_active_only_inside_its_scope() {
+    assert!(!ProcessCleanup::is_active());
+    let cleanup = ProcessCleanup::default();
+    cleanup
+        .scope(async {
+            assert!(ProcessCleanup::is_active());
+        })
+        .await;
+    cleanup.wait().await;
+}

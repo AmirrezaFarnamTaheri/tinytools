@@ -128,3 +128,114 @@ fn unrestricted_policy_session_renders_none() {
 
     assert!(render_tool_policy_boundary(&session, 2048).is_none());
 }
+
+fn restricted_session() -> ToolPolicySession {
+    let tools: Vec<Box<dyn Tool>> = vec![
+        Box::new(PromptTestTool {
+            name: "read_notes".into(),
+            permission: PermissionLevel::ReadOnly,
+        }),
+        Box::new(PromptTestTool {
+            name: "write_notes".into(),
+            permission: PermissionLevel::Write,
+        }),
+    ];
+    let mut permissions = HashMap::new();
+    permissions.insert("web".to_string(), "read_only".to_string());
+    ToolPolicyEngine::build_session(
+        "orchestrator",
+        "web",
+        "chat",
+        &permissions,
+        &tools,
+        &HashSet::new(),
+    )
+}
+
+#[test]
+fn boundary_truncates_to_the_byte_budget_with_a_marker() {
+    let session = restricted_session();
+    let full = render_tool_policy_boundary(&session, 4096).expect("boundary");
+    let budget = full.len() - 10;
+    let rendered = render_tool_policy_boundary(&session, budget).expect("boundary");
+    assert!(rendered.len() <= budget);
+    assert!(rendered.ends_with("[...truncated]"));
+}
+
+#[test]
+fn boundary_with_zero_budget_is_empty() {
+    let session = restricted_session();
+    assert_eq!(render_tool_policy_boundary(&session, 0).unwrap(), "");
+}
+
+#[test]
+fn boundary_smaller_than_the_marker_is_cut_without_it() {
+    let session = restricted_session();
+    let rendered = render_tool_policy_boundary(&session, 5).unwrap();
+    assert!(rendered.len() <= 5);
+    assert!(!rendered.contains("truncated"));
+}
+
+#[test]
+fn risk_levels_display_and_map_from_permission() {
+    use crate::agent_policy::TaskRiskLevel;
+    let cases = [
+        (PermissionLevel::None, "low"),
+        (PermissionLevel::ReadOnly, "low"),
+        (PermissionLevel::Write, "medium"),
+        (PermissionLevel::Execute, "high"),
+        (PermissionLevel::Dangerous, "critical"),
+    ];
+    for (permission, text) in cases {
+        assert_eq!(
+            TaskRiskLevel::from_allowed_permission(permission).to_string(),
+            text
+        );
+    }
+}
+
+#[test]
+fn blocks_execution_covers_actions_and_the_permission_ceiling() {
+    use crate::agent_policy::{ToolPolicyAction, ToolPolicyDecision};
+    let decision = |action, required| ToolPolicyDecision {
+        tool_name: "t".into(),
+        action,
+        required_permission: required,
+        allowed_permission: PermissionLevel::ReadOnly,
+    };
+    assert!(decision(ToolPolicyAction::Deny, None).blocks_execution());
+    assert!(decision(ToolPolicyAction::RequireApproval, None).blocks_execution());
+    assert!(!decision(ToolPolicyAction::HideFromPrompt, None).blocks_execution());
+    assert!(
+        decision(
+            ToolPolicyAction::HideFromPrompt,
+            Some(PermissionLevel::Write)
+        )
+        .blocks_execution()
+    );
+    assert!(!decision(ToolPolicyAction::Allow, Some(PermissionLevel::ReadOnly)).blocks_execution());
+}
+
+#[test]
+fn deny_moves_a_tool_to_blocked_and_ignores_unknown_names() {
+    let mut session = restricted_session();
+    assert!(session.is_allowed("read_notes"));
+    session.deny(["read_notes", "unknown_tool"]);
+    assert!(!session.is_allowed("read_notes"));
+    assert!(session.blocked_tool_names.contains("read_notes"));
+    assert!(session.decision_for("read_notes").is_denied());
+    assert!(session.decision_for("unknown_tool").is_denied());
+}
+
+#[test]
+fn prompt_visibility_uses_a_sentinel_when_nothing_is_allowed() {
+    let mut session = restricted_session();
+    session.deny(["read_notes"]);
+    let visible = session.visible_tool_names_for_prompt();
+    assert_eq!(visible.len(), 1);
+    assert!(!visible.contains("read_notes"));
+
+    let open =
+        ToolPolicyEngine::build_session("a", "web", "chat", &HashMap::new(), &[], &HashSet::new());
+    assert!(open.visible_tool_names_for_prompt().is_empty());
+}
