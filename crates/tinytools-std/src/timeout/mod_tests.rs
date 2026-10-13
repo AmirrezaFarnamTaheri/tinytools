@@ -235,7 +235,7 @@ async fn a_timed_out_command_takes_its_whole_process_group_with_it() {
     let mut gone = false;
     for _ in 0..100 {
         // kill(pid, 0) succeeds while the process (or its zombie) exists.
-        if unsafe { libc::kill(grandchild, 0) } != 0 {
+        if !process_exists(grandchild) {
             gone = true;
             break;
         }
@@ -243,8 +243,10 @@ async fn a_timed_out_command_takes_its_whole_process_group_with_it() {
         // execute side effects; use the same kernel-state rule as cleanup.
         #[cfg(target_os = "linux")]
         if let Ok(stat) = std::fs::read_to_string(format!("/proc/{grandchild}/stat")) {
-            let group = unsafe { libc::getpgid(grandchild) };
-            if group > 0 && !group_exit::is_active_member(&stat, group as u32) {
+            let group = rustix::process::Pid::from_raw(grandchild)
+                .and_then(|pid| rustix::process::getpgid(Some(pid)).ok());
+            if let Some(group) = group.map(|g| g.as_raw_nonzero().get() as u32) {
+              if !group_exit::is_active_member(&stat, group) {
                 gone = true;
                 break;
             }
@@ -280,7 +282,7 @@ async fn a_shell_family_child_dies_with_a_dropped_future() {
     };
     let mut gone = false;
     for _ in 0..100 {
-        if unsafe { libc::kill(shell, 0) } != 0 {
+        if !process_exists(shell) {
             gone = true;
             break;
         }

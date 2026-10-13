@@ -206,14 +206,13 @@ pub fn own_process_group(cmd: &mut std::process::Command) {
 pub fn kill_process_group(pid: u32) {
     #[cfg(unix)]
     {
-        let Ok(pid) = i32::try_from(pid) else {
+        use rustix::process::{Pid, Signal};
+        let Some(pid) = i32::try_from(pid).ok().and_then(Pid::from_raw) else {
             return;
         };
-        // SAFETY: a signal to a process group this process created; the kernel
-        // validates the target, and a negative pid addresses the group.
-        unsafe {
-            libc::kill(-pid, libc::SIGKILL);
-        }
+        // A signal to a process group this process created; the kernel
+        // validates the target. A failure (group already gone) is expected.
+        let _ = rustix::process::kill_process_group(pid, Signal::KILL);
     }
     #[cfg(not(unix))]
     {
