@@ -31,6 +31,17 @@ impl ProcessCleanup {
         ACTIVE.scope(scopes, future).await
     }
 
+    /// Register work that the current turn's [`wait`](Self::wait) must outlast
+    /// until the returned hold is dropped: the explicit inheritance a host tool
+    /// needs when it hands a command to a task or service of its own. Take it
+    /// inside the scope (before spawning), move it into the detached work, and
+    /// drop it once that work has stopped. Outside any scope it holds nothing.
+    pub fn hold() -> CleanupHold {
+        CleanupHold {
+            _reaped: Reaped::register(),
+        }
+    }
+
     /// Wait for every registered command to exit and its output pipes to close.
     /// Call only after the scoped future has finished or been dropped, so no
     /// further commands can be registered by it.
@@ -43,6 +54,18 @@ impl ProcessCleanup {
         for mut waiter in waiters {
             let _ = waiter.wait_for(|done| *done).await;
         }
+    }
+}
+
+/// Keeps the turn's cleanup waiting while alive. See [`ProcessCleanup::hold`].
+#[must_use = "the cleanup stops waiting as soon as the hold is dropped"]
+pub struct CleanupHold {
+    _reaped: Reaped,
+}
+
+impl std::fmt::Debug for CleanupHold {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CleanupHold").finish_non_exhaustive()
     }
 }
 
