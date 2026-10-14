@@ -156,7 +156,8 @@ pub use policy::{
 };
 pub use progress::{ProgressSink, ToolProgress};
 pub use rank::{
-    Bm25Index, Bm25Ranker, RankCandidate, RankChat, RankContext, RankError, RankHit, ToolRanker, tokenize,
+    Bm25Index, Bm25Ranker, RankCandidate, RankChat, RankContext, RankError, RankHit, ToolRanker,
+    tokenize,
 };
 pub use registry::{
     CapabilityProviderDiagnostics, McpAllowlistDiagnostics, McpServerAllowlistSummary,
