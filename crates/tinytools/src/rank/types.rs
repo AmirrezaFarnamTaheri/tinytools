@@ -81,6 +81,12 @@ pub struct RankContext {
     /// caller. Lets a ranker resolve "do it again for Bob" against the turn
     /// before. Empty when the caller has nothing worth adding.
     pub recent_turns: Vec<String>,
+    /// The chat the search runs for, when it runs for one. A ranker that sends
+    /// the intent off the machine (a cloud embedder, a hosted decision model)
+    /// uses it to tell that chat what left, instead of disclosing to nobody.
+    /// `None` for a search with no chat behind it (CLI, cron, a detached
+    /// sub-agent); such a search is not chat-routable.
+    pub chat: Option<RankChat>,
 }
 
 impl RankContext {
@@ -88,6 +94,46 @@ impl RankContext {
     #[must_use]
     pub fn empty() -> Self {
         Self::default()
+    }
+
+    /// This context, for the search of `chat`.
+    #[must_use]
+    pub fn with_chat(mut self, chat: RankChat) -> Self {
+        self.chat = Some(chat);
+        self
+    }
+}
+
+/// The chat a search was made in: the thread, the client showing it, and the
+/// turn when the caller has one. Opaque to the ranker's own logic; it exists
+/// to be handed back to whatever surfaces a disclosure.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RankChat {
+    /// The conversation thread.
+    pub thread_id: String,
+    /// The client (window, socket) showing the thread.
+    pub client_id: String,
+    /// The turn currently running on the thread, when known, so a disclosure
+    /// can be matched to the turn that caused it and not only to the thread.
+    pub request_id: Option<String>,
+}
+
+impl RankChat {
+    /// A chat with no turn id.
+    #[must_use]
+    pub fn new(thread_id: impl Into<String>, client_id: impl Into<String>) -> Self {
+        Self {
+            thread_id: thread_id.into(),
+            client_id: client_id.into(),
+            request_id: None,
+        }
+    }
+
+    /// Sets the running turn's id.
+    #[must_use]
+    pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
+        self.request_id = Some(request_id.into());
+        self
     }
 }
 
