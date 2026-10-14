@@ -125,19 +125,19 @@ fn rank_error_displays_without_credentials() {
 #[test]
 fn empty_context_has_no_chat() {
     assert_eq!(RankContext::empty().chat, None);
-    assert!(RankContext::empty().recent_turns.is_empty());
+    assert_eq!(RankContext::empty().recent_turns, Vec::<String>::new());
 }
 
 #[test]
 fn context_carries_the_chat_it_was_built_for() {
     let chat = RankChat::new("thread-1", "client-1").with_request_id("req-9");
     let context = RankContext::empty().with_chat(chat.clone());
-    assert_eq!(context.chat, Some(chat));
-    let carried = context.clone();
-    let chat = carried.chat.expect("chat survives a clone");
-    assert_eq!(chat.thread_id, "thread-1");
-    assert_eq!(chat.client_id, "client-1");
-    assert_eq!(chat.request_id.as_deref(), Some("req-9"));
+    assert_eq!(context.chat, Some(chat.clone()));
+    assert_eq!(context.clone().chat, Some(chat));
+    let carried = context.chat.unwrap_or_else(|| RankChat::new("", ""));
+    assert_eq!(carried.thread_id, "thread-1");
+    assert_eq!(carried.client_id, "client-1");
+    assert_eq!(carried.request_id.as_deref(), Some("req-9"));
 }
 
 /// A ranker is handed the context's chat unchanged, so it can route a
@@ -157,17 +157,16 @@ async fn ranker_receives_the_chat_in_its_context() {
             _candidates: &[RankCandidate],
             _limit: usize,
         ) -> Result<Vec<RankHit>, RankError> {
-            *self.0.lock().expect("lock") = context.chat.clone();
+            if let Ok(mut seen) = self.0.lock() {
+                *seen = context.chat.clone();
+            }
             Ok(Vec::new())
         }
     }
     let echo = Echo(std::sync::Mutex::new(None));
     let context = RankContext::empty().with_chat(RankChat::new("t", "c"));
-    echo.rank("anything", &context, &candidates(), 1)
-        .await
-        .expect("rank");
-    assert_eq!(
-        echo.0.lock().expect("lock").clone(),
-        Some(RankChat::new("t", "c"))
-    );
+    let ranked = echo.rank("anything", &context, &candidates(), 1).await;
+    assert!(ranked.is_ok());
+    let seen = echo.0.lock().map(|chat| chat.clone()).unwrap_or_default();
+    assert_eq!(seen, Some(RankChat::new("t", "c")));
 }
