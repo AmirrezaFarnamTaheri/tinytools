@@ -38,7 +38,7 @@ mod test;
 mod types;
 
 pub use bm25::{Bm25Index, Bm25Ranker, tokenize};
-pub use types::{RankCandidate, RankContext, RankError, RankHit};
+pub use types::{RankCandidate, RankChat, RankContext, RankError, RankHit};
 
 /// Ranks tool candidates against an intent.
 ///
