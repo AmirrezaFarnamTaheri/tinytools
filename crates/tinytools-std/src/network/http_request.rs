@@ -5,7 +5,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use tinytools::{PermissionLevel, Tool, ToolResult};
 
-use crate::url_guard::{normalize_allowed_domains, validate_url_with_dns_check};
+use crate::url_guard::{normalize_allowed_domains, ValidatedUrl};
+
+use super::gate::validate_destination;
 
 /// What a [`PaymentHook`] hands back to retry a `402 Payment Required`.
 pub struct PaymentAttempt {
@@ -121,10 +123,22 @@ impl HttpRequestTool {
         self
     }
 
-    async fn validate_url(&self, raw_url: &str) -> anyhow::Result<String> {
-        validate_url_with_dns_check(raw_url, &self.allowed_domains)
-            .await
-            .map(|v| v.url)
+    async fn validate_url(
+        &self,
+        raw_url: &str,
+        method: &str,
+        headers: &[(String, String)],
+        body: Option<&str>,
+    ) -> anyhow::Result<ValidatedUrl> {
+        validate_destination(
+            &*self.gate,
+            raw_url,
+            &self.allowed_domains,
+            method,
+            headers,
+            body,
+        )
+        .await
     }
 
     fn validate_method(&self, method: &str) -> anyhow::Result<reqwest::Method> {
@@ -188,7 +202,7 @@ impl HttpRequestTool {
 
     async fn execute_request(
         &self,
-        url: &str,
+        target: &ValidatedUrl,
         method: reqwest::Method,
         headers: Vec<(String, String)>,
         body: Option<&str>,
@@ -199,9 +213,12 @@ impl HttpRequestTool {
             .user_agent(super::gate::USER_AGENT)
             .redirect(reqwest::redirect::Policy::none());
         let builder = self.gate.prepare_client("tool.http_request", builder);
+        // Connect only to the vetted addresses; the URL keeps its host name so
+        // `Host`, SNI and certificate checks are unchanged.
+        let builder = builder.resolve_to_addrs(&target.host, &target.addrs);
         let client = builder.build()?;
 
-        let mut request = client.request(method, url);
+        let mut request = client.request(method, &target.url);
 
         for (key, value) in headers {
             request = request.header(&key, &value);
@@ -219,22 +236,23 @@ impl HttpRequestTool {
         &self,
         hook: &Arc<dyn PaymentHook>,
         initial_response: reqwest::Response,
-        url: &str,
+        target: &ValidatedUrl,
         method: reqwest::Method,
         headers: Vec<(String, String)>,
         body: Option<&str>,
     ) -> Result<reqwest::Response, String> {
         log::debug!(
-            "[tool.http_request] 402 received with PAYMENT-REQUIRED, attempting x402 payment for {url}"
+            "[tool.http_request] 402 received with PAYMENT-REQUIRED, attempting x402 payment for {}"
+            , target.url
         );
 
-        let attempt = hook.pay(url, initial_response.headers()).await?;
+        let attempt = hook.pay(&target.url, initial_response.headers()).await?;
 
         let mut retry_headers = headers;
         retry_headers.extend(attempt.headers);
 
         let response = self
-            .execute_request(url, method, retry_headers, body)
+            .execute_request(target, method, retry_headers, body)
             .await
             .map_err(|e| format!("x402 retry request failed: {e}"))?;
 
@@ -403,10 +421,15 @@ impl Tool for HttpRequestTool {
             }
         }
 
-        let url = match self.validate_url(url).await {
+        let request_headers = self.parse_headers(&headers_val);
+        let target = match self
+            .validate_url(url, method_str, &request_headers, body)
+            .await
+        {
             Ok(v) => v,
             Err(e) => return Ok(ToolResult::error(e.to_string())),
         };
+        let url = target.url.clone();
 
         // Egress spine (privacy epic S2, #4436): an agent-driven HTTP request to
         // an allowlisted host leaves the device — disclose the destination and
@@ -423,10 +446,8 @@ impl Tool for HttpRequestTool {
             Err(e) => return Ok(ToolResult::error(e.to_string())),
         };
 
-        let request_headers = self.parse_headers(&headers_val);
-
         let response = match self
-            .execute_request(&url, method.clone(), request_headers.clone(), body)
+            .execute_request(&target, method.clone(), request_headers.clone(), body)
             .await
         {
             Ok(r) => r,
@@ -443,7 +464,7 @@ impl Tool for HttpRequestTool {
                         || response.headers().get("X-PAYMENT-REQUIRED").is_some()) =>
             {
                 match self
-                    .handle_payment_required(hook, response, &url, method, request_headers, body)
+                    .handle_payment_required(hook, response, &target, method, request_headers, body)
                     .await
                 {
                     Ok(paid_response) => paid_response,

@@ -7,7 +7,9 @@
 //! about.
 
 use super::gate::{NetGate, host_of};
-use crate::url_guard::{normalize_allowed_domains, validate_url_with_dns_check};
+use crate::url_guard::{normalize_allowed_domains, ValidatedUrl};
+
+use super::gate::validate_destination;
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use sha2::{Digest, Sha256};
