@@ -87,6 +87,109 @@ pub trait NetGate: std::fmt::Debug + Send + Sync {
         timeout_secs: u64,
         connect_timeout_secs: u64,
     ) -> reqwest::Client;
+
+    /// Let the host authorize the destination of a request and say which socket
+    /// addresses the connection may use.
+    ///
+    /// Called after the lexical checks (scheme, allowlist, literal private
+    /// host) and before any DNS or connection. The answer decides how the tool
+    /// proceeds:
+    ///
+    /// * `None` (the default): the host takes no part, and the tool resolves and
+    ///   vets the host itself ([`validate_url_with_dns_check`]).
+    /// * `Some(Ok(addrs))`: the host authorized the destination. The tool
+    ///   connects only to `addrs` (no second DNS lookup) while keeping the URL's
+    ///   host for the `Host` header, SNI and certificate checks. Addresses that
+    ///   are private or local are refused regardless, so a host cannot widen the
+    ///   tool beyond the public internet.
+    /// * `Some(Err(reason))`: the host refused; the tool returns `reason`.
+    ///
+    /// A host that already holds a decision engine for destinations (a security
+    /// module that resolves, applies an address floor and pins) answers here so
+    /// there is one URL guard, not one per tool.
+    ///
+    /// [`validate_url_with_dns_check`]: crate::url_guard::validate_url_with_dns_check
+    fn authorize_destination<'a>(
+        &'a self,
+        destination: &'a Destination<'a>,
+    ) -> DestinationFuture<'a> {
+        let _ = destination;
+        Box::pin(std::future::ready(None))
+    }
+}
+
+/// A request a tool is about to make, as the host sees it when it authorizes
+/// the destination. Borrowed from the call; nothing here is retained.
+#[derive(Debug, Clone, Copy)]
+pub struct Destination<'a> {
+    /// The URL that passed the lexical checks.
+    pub url: &'a str,
+    /// Its host (a name or an IPv4 literal).
+    pub host: &'a str,
+    /// Its port (the scheme default when the URL names none).
+    pub port: u16,
+    /// HTTP method.
+    pub method: &'a str,
+    /// Caller-supplied headers.
+    pub headers: &'a [(String, String)],
+    /// Request body, if any.
+    pub body: Option<&'a str>,
+}
+
+/// The host's answer to [`NetGate::authorize_destination`]; see there.
+pub type DestinationFuture<'a> = std::pin::Pin<
+    Box<
+        dyn std::future::Future<Output = Option<Result<Vec<std::net::SocketAddr>, String>>>
+            + Send
+            + 'a,
+    >,
+>;
+
+/// Lexically validate `raw_url`, then resolve it: through the gate when the
+/// host authorizes destinations, otherwise with the shared DNS check. The
+/// returned addresses are the only ones the tool may connect to.
+pub(super) async fn validate_destination(
+    gate: &dyn NetGate,
+    raw_url: &str,
+    allowed_domains: &[String],
+    method: &str,
+    headers: &[(String, String)],
+    body: Option<&str>,
+) -> anyhow::Result<crate::url_guard::ValidatedUrl> {
+    use crate::url_guard::{
+        ValidatedUrl, extract_host, extract_port, is_private_or_local_host, validate_url,
+        validate_url_with_dns_check,
+    };
+    let url = validate_url(raw_url, allowed_domains)?;
+    let host = extract_host(&url)?;
+    let port = extract_port(&url)?;
+    let destination = Destination {
+        url: &url,
+        host: &host,
+        port,
+        method,
+        headers,
+        body,
+    };
+    match gate.authorize_destination(&destination).await {
+        None => validate_url_with_dns_check(raw_url, allowed_domains).await,
+        Some(Err(reason)) => anyhow::bail!("{reason}"),
+        Some(Ok(addrs)) => {
+            if addrs.is_empty() {
+                anyhow::bail!("the host authorized '{host}' without an address");
+            }
+            if let Some(blocked) = addrs
+                .iter()
+                .find(|addr| is_private_or_local_host(&addr.ip().to_string()))
+            {
+                anyhow::bail!(
+                    "Blocked local/private address {} for '{host}'",
+                    blocked.ip()
+                );
+            }
+            Ok(ValidatedUrl { url, host, addrs })
+        }
+    }
 }
 
 /// The host of `url`, or `"unknown"` when it does not parse or has none.
@@ -114,3 +217,7 @@ pub struct HttpLimits {
     /// Whole-request timeout, in seconds.
     pub timeout_secs: u64,
 }
+
+#[cfg(test)]
+#[path = "gate_tests.rs"]
+mod tests;

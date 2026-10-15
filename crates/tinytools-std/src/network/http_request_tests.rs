@@ -1,5 +1,5 @@
 use super::*;
-use crate::network::test_support::{AutonomyLevel, DEFAULT_LIMITS, TestNetGate};
+use crate::network::test_support::{AutonomyLevel, DEFAULT_LIMITS, TestNetGate, pinned_to_local};
 
 fn test_tool(allowed_domains: Vec<&str>) -> HttpRequestTool {
     let security = TestNetGate::supervised();
@@ -69,7 +69,7 @@ fn validate_rejects_invalid_method() {
 async fn validate_url_rejects_disallowed_domain() {
     let tool = test_tool(vec!["example.com"]);
     let err = tool
-        .validate_url("https://evil.test/path")
+        .validate_url("https://evil.test/path", "GET", &[], None)
         .await
         .unwrap_err()
         .to_string();
@@ -411,9 +411,10 @@ async fn a_402_is_retried_once_with_the_hooks_headers_and_settled() {
     });
     let tool = test_tool(vec![]);
     let url = format!("http://{addr}/paid");
+    let target = pinned_to_local(&url);
     let first = tool
         .execute_request(
-            &url,
+            &target,
             reqwest::Method::GET,
             vec![("X-A".into(), "1".into())],
             None,
@@ -426,7 +427,7 @@ async fn a_402_is_retried_once_with_the_hooks_headers_and_settled() {
         .handle_payment_required(
             &hook,
             first,
-            &url,
+            &target,
             reqwest::Method::GET,
             vec![("X-A".into(), "1".into())],
             None,
@@ -467,12 +468,13 @@ async fn a_hook_failure_is_returned_as_the_error_without_a_retry() {
     });
     let tool = test_tool(vec![]);
     let url = format!("http://{addr}/paid");
+    let target = pinned_to_local(&url);
     let first = tool
-        .execute_request(&url, reqwest::Method::GET, vec![], None)
+        .execute_request(&target, reqwest::Method::GET, vec![], None)
         .await
         .unwrap();
     let err = tool
-        .handle_payment_required(&hook, first, &url, reqwest::Method::GET, vec![], None)
+        .handle_payment_required(&hook, first, &target, reqwest::Method::GET, vec![], None)
         .await
         .unwrap_err();
     assert_eq!(err, "x402 payment failed: no wallet");
@@ -486,7 +488,7 @@ async fn a_body_is_sent_and_a_success_response_is_formatted_with_redacted_cookie
     let tool = test_tool(vec![]);
     let response = tool
         .execute_request(
-            &format!("http://{addr}/post"),
+            &pinned_to_local(&format!("http://{addr}/post")),
             reqwest::Method::POST,
             vec![],
             Some("payload"),
@@ -531,7 +533,7 @@ async fn a_non_success_response_is_reported_as_an_error() {
     let tool = test_tool(vec![]);
     let response = tool
         .execute_request(
-            &format!("http://{addr}/"),
+            &pinned_to_local(&format!("http://{addr}/")),
             reqwest::Method::GET,
             vec![],
             None,
@@ -562,7 +564,7 @@ async fn an_unreadable_body_is_reported_inline() {
     let tool = test_tool(vec![]);
     let response = tool
         .execute_request(
-            &format!("http://{addr}/"),
+            &pinned_to_local(&format!("http://{addr}/")),
             reqwest::Method::GET,
             vec![],
             None,
@@ -617,7 +619,7 @@ async fn an_outgoing_request_carries_a_user_agent() -> anyhow::Result<()> {
     let tool = test_tool(vec![]);
     let _ = tool
         .execute_request(
-            &format!("http://{addr}/"),
+            &pinned_to_local(&format!("http://{addr}/")),
             reqwest::Method::GET,
             vec![],
             None,
@@ -638,4 +640,31 @@ async fn an_outgoing_request_carries_a_user_agent() -> anyhow::Result<()> {
         "the header must identify this crate:\n{request}"
     );
     Ok(())
+}
+
+/// The connection goes to the vetted address, not to whatever the host name
+/// resolves to a second time: the name below does not resolve at all, and the
+/// request still reaches the pinned socket with the name in `Host`.
+#[tokio::test]
+async fn the_request_connects_to_the_pinned_address_and_keeps_the_host_name() {
+    let ok = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok";
+    let (addr, seen) = serve(vec![ok.to_string()]).await;
+    let tool = test_tool(vec![]);
+    let target = crate::url_guard::ValidatedUrl {
+        url: format!("http://pinned.invalid:{}/x", addr.port()),
+        host: "pinned.invalid".to_string(),
+        addrs: vec![addr],
+    };
+    let response = tool
+        .execute_request(&target, reqwest::Method::GET, vec![], None)
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    let request = seen.lock().unwrap().join("");
+    assert!(
+        request
+            .to_ascii_lowercase()
+            .contains(&format!("host: pinned.invalid:{}", addr.port())),
+        "{request}"
+    );
 }
