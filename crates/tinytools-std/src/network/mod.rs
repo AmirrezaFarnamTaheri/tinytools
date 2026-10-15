@@ -44,7 +44,7 @@ mod contract_test;
 mod test_support;
 
 pub use curl::CurlTool;
-pub use gate::{HttpLimits, NetGate};
+pub use gate::{Destination, DestinationFuture, HttpLimits, NetGate};
 pub use http_request::{HttpRequestTool, PaymentAttempt, PaymentHook, PaymentOutcome};
 pub use pushover::PushoverTool;
 pub use web_fetch::{AsyncHtmlExtractor, HtmlExtractor, WebFetchTool};
