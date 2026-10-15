@@ -1,7 +1,7 @@
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use super::*;
-use crate::network::test_support::{DEFAULT_LIMITS, TestHtml, TestNetGate};
+use crate::network::test_support::{DEFAULT_LIMITS, TestHtml, TestNetGate, pinned_to_local};
 use std::sync::Mutex;
 
 fn test_security() -> Arc<TestNetGate> {
@@ -281,7 +281,7 @@ async fn an_outgoing_request_carries_a_user_agent() {
 
     let tool = fetch(test_security(), vec![], None, None);
     let result = tool
-        .fetch_validated(&format!("http://{addr}/"), 1_000_000, false)
+        .fetch_validated(&pinned_to_local(&format!("http://{addr}/")), 1_000_000, false)
         .await
         .unwrap();
     assert!(!result.is_error, "got: {}", result.output());
@@ -607,7 +607,7 @@ async fn remote_extraction_reads_before_applying_the_output_cap() {
     let tool = remote_fetch(false, false);
     let body = page_with_prose_after(4_000);
     let url = serve_once(&http_response("200 OK", "", &body)).await;
-    let result = tool.fetch_validated(&url, 1_000, false).await.unwrap();
+    let result = tool.fetch_validated(&pinned_to_local(&url), 1_000, false).await.unwrap();
     assert!(result.output().contains("the prose that matters"));
     assert!(result.output().contains("content=markdown"));
 }
@@ -616,7 +616,7 @@ async fn remote_extraction_reads_before_applying_the_output_cap() {
 async fn remote_detection_failure_propagates_without_returning_markup() {
     let tool = remote_fetch(true, false);
     let url = serve_once(&http_response("200 OK", "", "<html>private</html>")).await;
-    let error = tool.fetch_validated(&url, 1_000, false).await.unwrap_err();
+    let error = tool.fetch_validated(&pinned_to_local(&url), 1_000, false).await.unwrap_err();
     assert_eq!(error.to_string(), "remote detection unavailable");
 }
 
@@ -630,7 +630,7 @@ async fn remote_extraction_failure_propagates_for_success_and_error_responses() 
             "<p>private</p>",
         ))
         .await;
-        let error = tool.fetch_validated(&url, 1_000, false).await.unwrap_err();
+        let error = tool.fetch_validated(&pinned_to_local(&url), 1_000, false).await.unwrap_err();
         assert_eq!(error.to_string(), "remote extraction unavailable");
     }
 }
@@ -640,7 +640,7 @@ async fn raw_and_explicit_non_html_responses_do_not_call_the_remote_provider() {
     let tool = remote_fetch(true, true);
     for (headers, raw) in [("Content-Type: application/json\r\n", false), ("", true)] {
         let url = serve_once(&http_response("200 OK", headers, "<p>raw</p>")).await;
-        let result = tool.fetch_validated(&url, 1_000, raw).await.unwrap();
+        let result = tool.fetch_validated(&pinned_to_local(&url), 1_000, raw).await.unwrap();
         assert!(result.output().ends_with("<p>raw</p>"));
         assert!(!result.output().contains("content=markdown"));
     }

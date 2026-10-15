@@ -1,5 +1,5 @@
 use super::*;
-use crate::network::test_support::{AutonomyLevel, DEFAULT_LIMITS, TestNetGate};
+use crate::network::test_support::{AutonomyLevel, DEFAULT_LIMITS, TestNetGate, pinned_to_local};
 
 fn test_tool(allowed_domains: Vec<&str>) -> HttpRequestTool {
     let security = TestNetGate::supervised();
@@ -488,7 +488,7 @@ async fn a_body_is_sent_and_a_success_response_is_formatted_with_redacted_cookie
     let tool = test_tool(vec![]);
     let response = tool
         .execute_request(
-            &format!("http://{addr}/post"),
+            &pinned_to_local(&format!("http://{addr}/post")),
             reqwest::Method::POST,
             vec![],
             Some("payload"),
@@ -533,7 +533,7 @@ async fn a_non_success_response_is_reported_as_an_error() {
     let tool = test_tool(vec![]);
     let response = tool
         .execute_request(
-            &format!("http://{addr}/"),
+            &pinned_to_local(&format!("http://{addr}/")),
             reqwest::Method::GET,
             vec![],
             None,
@@ -564,7 +564,7 @@ async fn an_unreadable_body_is_reported_inline() {
     let tool = test_tool(vec![]);
     let response = tool
         .execute_request(
-            &format!("http://{addr}/"),
+            &pinned_to_local(&format!("http://{addr}/")),
             reqwest::Method::GET,
             vec![],
             None,
@@ -619,7 +619,7 @@ async fn an_outgoing_request_carries_a_user_agent() -> anyhow::Result<()> {
     let tool = test_tool(vec![]);
     let _ = tool
         .execute_request(
-            &format!("http://{addr}/"),
+            &pinned_to_local(&format!("http://{addr}/")),
             reqwest::Method::GET,
             vec![],
             None,
