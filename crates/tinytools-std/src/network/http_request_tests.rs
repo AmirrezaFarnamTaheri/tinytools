@@ -641,3 +641,30 @@ async fn an_outgoing_request_carries_a_user_agent() -> anyhow::Result<()> {
     );
     Ok(())
 }
+
+/// The connection goes to the vetted address, not to whatever the host name
+/// resolves to a second time: the name below does not resolve at all, and the
+/// request still reaches the pinned socket with the name in `Host`.
+#[tokio::test]
+async fn the_request_connects_to_the_pinned_address_and_keeps_the_host_name() {
+    let ok = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok";
+    let (addr, seen) = serve(vec![ok.to_string()]).await;
+    let tool = test_tool(vec![]);
+    let target = crate::url_guard::ValidatedUrl {
+        url: format!("http://pinned.invalid:{}/x", addr.port()),
+        host: "pinned.invalid".to_string(),
+        addrs: vec![addr],
+    };
+    let response = tool
+        .execute_request(&target, reqwest::Method::GET, vec![], None)
+        .await
+        .expect("the pinned socket answers");
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    let request = seen.lock().unwrap().join("");
+    assert!(
+        request
+            .to_ascii_lowercase()
+            .contains(&format!("host: pinned.invalid:{}", addr.port())),
+        "{request}"
+    );
+}

@@ -791,3 +791,26 @@ fn status_of_rejects_quoted_bare_or_non_error_statuses() {
         None
     );
 }
+
+/// As for `http_request`: the fetch connects to the vetted address and keeps
+/// the host name, rather than resolving the name again.
+#[tokio::test]
+async fn the_fetch_connects_to_the_pinned_address() {
+    let url = serve_once(&http_response(
+        "200 OK",
+        "Content-Type: text/plain\r\n",
+        "pinned",
+    ))
+    .await;
+    let port = reqwest::Url::parse(&url).unwrap().port().unwrap();
+    let target = ValidatedUrl {
+        url: format!("http://pinned.invalid:{port}/page"),
+        host: "pinned.invalid".to_string(),
+        addrs: vec![format!("127.0.0.1:{port}").parse().unwrap()],
+    };
+    let result = fetch(test_security(), vec![], None, None)
+        .fetch_validated(&target, 1_000_000, false)
+        .await
+        .unwrap();
+    assert!(!result.is_error, "{result:?}");
+}
