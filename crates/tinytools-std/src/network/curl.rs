@@ -90,10 +90,20 @@ impl CurlTool {
         Ok(resolved)
     }
 
-    async fn validate_url(&self, raw_url: &str) -> anyhow::Result<String> {
-        validate_url_with_dns_check(raw_url, &self.allowed_domains)
-            .await
-            .map(|v| v.url)
+    async fn validate_url(
+        &self,
+        raw_url: &str,
+        headers: &[(String, String)],
+    ) -> anyhow::Result<ValidatedUrl> {
+        validate_destination(
+            &*self.gate,
+            raw_url,
+            &self.allowed_domains,
+            "GET",
+            headers,
+            None,
+        )
+        .await
     }
 
     fn default_filename_from_url(url: &str) -> String {
@@ -204,13 +214,23 @@ impl Tool for CurlTool {
             }
         }
 
-        let url = match self.validate_url(url).await {
+        let request_headers: Vec<(String, String)> = headers_val
+            .as_object()
+            .map(|obj| {
+                obj.iter()
+                    .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let target = match self.validate_url(url, &request_headers).await {
             Ok(v) => v,
             Err(e) => {
                 tracing::debug!(target: "[curl]", url = %url, reason = %e, "url validation failed");
                 return Ok(ToolResult::error(e.to_string()));
             }
         };
+
+        let url = target.url.clone();
 
         // Egress spine (privacy epic S2/S7, #4436/#4441): a curl download
         // contacts an external host — disclose the destination (and that custom
@@ -249,6 +269,8 @@ impl Tool for CurlTool {
             .connect_timeout(Duration::from_secs(10))
             .redirect(reqwest::redirect::Policy::none());
         let builder = self.gate.prepare_client("tool.curl", builder);
+        // Connect only to the vetted addresses; the URL keeps its host name.
+        let builder = builder.resolve_to_addrs(&target.host, &target.addrs);
         let client = match builder.build() {
             Ok(c) => c,
             Err(e) => {

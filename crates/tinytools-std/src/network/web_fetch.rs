@@ -12,7 +12,9 @@
 //! what they are. 3xx responses are not followed and stay successful reports.
 
 use super::gate::{HttpLimits, NetGate, USER_AGENT, host_of};
-use crate::url_guard::{normalize_allowed_domains, validate_url_with_dns_check};
+use crate::url_guard::{normalize_allowed_domains, ValidatedUrl};
+
+use super::gate::validate_destination;
 use async_trait::async_trait;
 use serde_json::json;
 use std::sync::Arc;
@@ -322,16 +324,26 @@ impl Tool for WebFetchTool {
             }
         }
 
-        let url = match validate_url_with_dns_check(raw_url, &self.allowed_domains).await {
-            Ok(u) => u.url,
+        let target = match validate_destination(
+            &*self.gate,
+            raw_url,
+            &self.allowed_domains,
+            "GET",
+            &[],
+            None,
+        )
+        .await
+        {
+            Ok(u) => u,
             Err(e) => return Ok(ToolResult::error(format!("URL rejected: {e}"))),
         };
+        let url = target.url.clone();
 
         // Egress spine (privacy epic S2, #4436): disclose the fetch destination
         // before contacting the host.
         self.gate.disclose(&host_of(&url), false, false);
 
-        self.fetch_validated(&url, max_bytes, raw_requested).await
+        self.fetch_validated(&target, max_bytes, raw_requested).await
     }
 }
 
@@ -340,7 +352,7 @@ impl WebFetchTool {
     /// guard, and render the response for the model.
     async fn fetch_validated(
         &self,
-        url: &str,
+        target: &ValidatedUrl,
         max_bytes: usize,
         raw_requested: bool,
     ) -> anyhow::Result<ToolResult> {
@@ -352,12 +364,15 @@ impl WebFetchTool {
             .timeout(Duration::from_secs(self.timeout_secs))
             .user_agent(USER_AGENT)
             .redirect(reqwest::redirect::Policy::none())
+            // Connect only to the vetted addresses; the URL keeps its host name.
+            .resolve_to_addrs(&target.host, &target.addrs)
             .build()
         {
             Ok(c) => c,
             Err(e) => return Ok(ToolResult::error(format!("Failed to build client: {e}"))),
         };
 
+        let url = target.url.as_str();
         let resp = match client.get(url).send().await {
             Ok(r) => r,
             Err(e) => return Ok(ToolResult::error(format!("Request failed: {e}"))),
