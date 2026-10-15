@@ -138,7 +138,11 @@ pub struct Destination<'a> {
 
 /// The host's answer to [`NetGate::authorize_destination`]; see there.
 pub type DestinationFuture<'a> = std::pin::Pin<
-    Box<dyn std::future::Future<Output = Option<Result<Vec<std::net::SocketAddr>, String>>> + Send + 'a>,
+    Box<
+        dyn std::future::Future<Output = Option<Result<Vec<std::net::SocketAddr>, String>>>
+            + Send
+            + 'a,
+    >,
 >;
 
 /// Lexically validate `raw_url`, then resolve it: through the gate when the
@@ -153,8 +157,8 @@ pub(super) async fn validate_destination(
     body: Option<&str>,
 ) -> anyhow::Result<crate::url_guard::ValidatedUrl> {
     use crate::url_guard::{
-        extract_host, extract_port, is_private_or_local_host, validate_url,
-        validate_url_with_dns_check, ValidatedUrl,
+        ValidatedUrl, extract_host, extract_port, is_private_or_local_host, validate_url,
+        validate_url_with_dns_check,
     };
     let url = validate_url(raw_url, allowed_domains)?;
     let host = extract_host(&url)?;
@@ -213,3 +217,7 @@ pub struct HttpLimits {
     /// Whole-request timeout, in seconds.
     pub timeout_secs: u64,
 }
+
+#[cfg(test)]
+#[path = "gate_tests.rs"]
+mod tests;

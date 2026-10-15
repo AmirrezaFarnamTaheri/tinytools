@@ -7,7 +7,7 @@
 //! about.
 
 use super::gate::{NetGate, host_of};
-use crate::url_guard::{normalize_allowed_domains, ValidatedUrl};
+use crate::url_guard::{ValidatedUrl, normalize_allowed_domains};
 
 use super::gate::validate_destination;
 use async_trait::async_trait;

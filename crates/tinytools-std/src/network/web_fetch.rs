@@ -12,7 +12,7 @@
 //! what they are. 3xx responses are not followed and stay successful reports.
 
 use super::gate::{HttpLimits, NetGate, USER_AGENT, host_of};
-use crate::url_guard::{normalize_allowed_domains, ValidatedUrl};
+use crate::url_guard::{ValidatedUrl, normalize_allowed_domains};
 
 use super::gate::validate_destination;
 use async_trait::async_trait;
@@ -343,7 +343,8 @@ impl Tool for WebFetchTool {
         // before contacting the host.
         self.gate.disclose(&host_of(&url), false, false);
 
-        self.fetch_validated(&target, max_bytes, raw_requested).await
+        self.fetch_validated(&target, max_bytes, raw_requested)
+            .await
     }
 }
 

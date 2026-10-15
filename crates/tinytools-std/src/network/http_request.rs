@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tinytools::{PermissionLevel, Tool, ToolResult};
 
-use crate::url_guard::{normalize_allowed_domains, ValidatedUrl};
+use crate::url_guard::{ValidatedUrl, normalize_allowed_domains};
 
 use super::gate::validate_destination;
 
@@ -242,8 +242,8 @@ impl HttpRequestTool {
         body: Option<&str>,
     ) -> Result<reqwest::Response, String> {
         log::debug!(
-            "[tool.http_request] 402 received with PAYMENT-REQUIRED, attempting x402 payment for {}"
-            , target.url
+            "[tool.http_request] 402 received with PAYMENT-REQUIRED, attempting x402 payment for {}",
+            target.url
         );
 
         let attempt = hook.pay(&target.url, initial_response.headers()).await?;
