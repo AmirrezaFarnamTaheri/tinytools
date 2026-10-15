@@ -2,21 +2,22 @@ use super::*;
 use std::net::SocketAddr;
 use std::sync::Mutex;
 
+/// What the gate was asked: url, host, port, method, headers, body.
+type Asked = (
+    String,
+    String,
+    u16,
+    String,
+    Vec<(String, String)>,
+    Option<String>,
+);
+
 /// A gate that answers `authorize_destination` with a canned result and keeps
 /// what it was asked.
 #[derive(Debug)]
 struct Authorizing {
     answer: Option<Result<Vec<SocketAddr>, String>>,
-    seen: Mutex<
-        Vec<(
-            String,
-            String,
-            u16,
-            String,
-            Vec<(String, String)>,
-            Option<String>,
-        )>,
-    >,
+    seen: Mutex<Vec<Asked>>,
 }
 
 impl Authorizing {
@@ -79,7 +80,7 @@ impl NetGate for Authorizing {
 }
 
 fn public() -> SocketAddr {
-    "93.184.216.34:443".parse().expect("literal address")
+    "93.184.216.34:443".parse().unwrap()
 }
 
 #[tokio::test]
@@ -89,7 +90,7 @@ async fn a_gate_that_takes_no_part_leaves_the_tools_own_check_in_force() {
     let gate = Authorizing::new(None);
     let target = validate_destination(&gate, "http://93.184.216.34/x", &[], "GET", &[], None)
         .await
-        .expect("a public literal validates");
+        .unwrap();
     assert_eq!(target.addrs, vec!["93.184.216.34:80".parse().unwrap()]);
     let blocked = validate_destination(&gate, "http://169.254.169.254/", &[], "GET", &[], None)
         .await
@@ -110,7 +111,7 @@ async fn an_authorizing_gate_supplies_the_addresses_and_sees_the_request() {
         Some("payload"),
     )
     .await
-    .expect("authorized");
+    .unwrap();
     assert_eq!(target.url, "https://example.test/path?q=1");
     assert_eq!(target.host, "example.test");
     assert_eq!(target.addrs, vec![public()]);

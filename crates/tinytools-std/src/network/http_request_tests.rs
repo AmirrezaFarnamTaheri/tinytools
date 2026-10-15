@@ -658,7 +658,7 @@ async fn the_request_connects_to_the_pinned_address_and_keeps_the_host_name() {
     let response = tool
         .execute_request(&target, reqwest::Method::GET, vec![], None)
         .await
-        .expect("the pinned socket answers");
+        .unwrap();
     assert_eq!(response.status(), reqwest::StatusCode::OK);
     let request = seen.lock().unwrap().join("");
     assert!(
