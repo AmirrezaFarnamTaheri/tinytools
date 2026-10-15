@@ -307,7 +307,7 @@ fn http_response(status_line: &str, headers: &str, body: &str) -> String {
 async fn fetch_canned(response: String) -> ToolResult {
     let url = serve_once(&response).await;
     fetch(test_security(), vec![], None, None)
-        .fetch_validated(&url, 1_000_000, false)
+        .fetch_validated(&pinned_to_local(&url), 1_000_000, false)
         .await
         .unwrap()
 }

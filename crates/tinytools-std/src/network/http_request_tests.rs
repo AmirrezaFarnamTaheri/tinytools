@@ -411,9 +411,10 @@ async fn a_402_is_retried_once_with_the_hooks_headers_and_settled() {
     });
     let tool = test_tool(vec![]);
     let url = format!("http://{addr}/paid");
+    let target = pinned_to_local(&url);
     let first = tool
         .execute_request(
-            &url,
+            &target,
             reqwest::Method::GET,
             vec![("X-A".into(), "1".into())],
             None,
@@ -426,7 +427,7 @@ async fn a_402_is_retried_once_with_the_hooks_headers_and_settled() {
         .handle_payment_required(
             &hook,
             first,
-            &url,
+            &target,
             reqwest::Method::GET,
             vec![("X-A".into(), "1".into())],
             None,
@@ -467,12 +468,13 @@ async fn a_hook_failure_is_returned_as_the_error_without_a_retry() {
     });
     let tool = test_tool(vec![]);
     let url = format!("http://{addr}/paid");
+    let target = pinned_to_local(&url);
     let first = tool
-        .execute_request(&url, reqwest::Method::GET, vec![], None)
+        .execute_request(&target, reqwest::Method::GET, vec![], None)
         .await
         .unwrap();
     let err = tool
-        .handle_payment_required(&hook, first, &url, reqwest::Method::GET, vec![], None)
+        .handle_payment_required(&hook, first, &target, reqwest::Method::GET, vec![], None)
         .await
         .unwrap_err();
     assert_eq!(err, "x402 payment failed: no wallet");
