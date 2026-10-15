@@ -111,7 +111,7 @@ async fn validate_url_rejects_disallowed_domain() {
     let tmp = TempDir::new().unwrap();
     let t = tool(&tmp, vec!["example.com"]);
     let err = t
-        .validate_url("https://evil.test/archive.tar.gz")
+        .validate_url("https://evil.test/archive.tar.gz", &[])
         .await
         .unwrap_err()
         .to_string();

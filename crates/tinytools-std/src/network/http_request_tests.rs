@@ -69,7 +69,7 @@ fn validate_rejects_invalid_method() {
 async fn validate_url_rejects_disallowed_domain() {
     let tool = test_tool(vec!["example.com"]);
     let err = tool
-        .validate_url("https://evil.test/path")
+        .validate_url("https://evil.test/path", "GET", &[], None)
         .await
         .unwrap_err()
         .to_string();
