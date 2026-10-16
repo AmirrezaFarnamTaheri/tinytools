@@ -74,7 +74,7 @@ use tinytools::ToolSpec;
 pub fn render_prompt_instructions(format: ToolCallFormat, tools: &[ToolSpec]) -> String {
     match format {
         ToolCallFormat::Native => NativeDialect.prompt_instructions(&[]),
-        ToolCallFormat::Json => XmlDialect::instructions(tools),
+        ToolCallFormat::Json => crate::render::render_compact_tool_instructions(tools),
         ToolCallFormat::PFormat => format!(
             "{}\n{}",
             crate::render::render_pformat_catalogue(tools),

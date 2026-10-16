@@ -49,7 +49,8 @@ fn prompt_dispatch_pairs_each_format_with_its_catalogue_and_protocol() {
     let tools = [weather_schema()];
     let json_prompt = render_prompt_instructions(ToolCallFormat::Json, &tools);
     assert!(json_prompt.contains("### Available Tools"));
-    assert!(json_prompt.contains("Parameters:"));
+    assert!(json_prompt.contains("Arguments:"));
+    assert!(json_prompt.contains("{location?: string, unit?: string}"));
 
     let pformat_prompt = render_prompt_instructions(ToolCallFormat::PFormat, &tools);
     assert!(pformat_prompt.contains("Call as: `get_weather[0|<location>|1|<unit>]`"));

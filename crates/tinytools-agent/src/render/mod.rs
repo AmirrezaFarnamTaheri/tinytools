@@ -18,6 +18,7 @@
 pub mod calls;
 pub mod catalogue;
 pub mod instructions;
+pub mod prompt;
 pub mod results;
 
 pub use calls::{render_json_call, render_json_calls};
@@ -27,6 +28,7 @@ pub use catalogue::{
 pub use instructions::{
     code_instructions, json_instructions, native_instructions, pformat_instructions,
 };
+pub use prompt::{argument_notes, compact_type_signature, render_compact_tool_instructions};
 pub use results::{
     TOOL_RESULTS_PREFIX, format_results, parse_replayed_results, to_provider_messages,
 };
