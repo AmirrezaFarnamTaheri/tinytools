@@ -44,6 +44,63 @@ fn weather_schema() -> ToolSpec {
     )
 }
 
+#[test]
+fn prompt_dispatch_pairs_each_format_with_its_catalogue_and_protocol() {
+    let tools = [weather_schema()];
+    let json_prompt = render_prompt_instructions(ToolCallFormat::Json, &tools);
+    assert_eq!(
+        json_prompt,
+        crate::render::render_compact_tool_instructions(&tools),
+        "JSON must retain the harness's historical compact prompt bytes"
+    );
+    assert!(json_prompt.contains("### Available Tools"));
+    assert!(json_prompt.contains("Arguments:"));
+    assert!(json_prompt.contains("{location?: string, unit?: string}"));
+
+    let pformat_prompt = render_prompt_instructions(ToolCallFormat::PFormat, &tools);
+    assert_eq!(
+        pformat_prompt,
+        format!(
+            "{}\n{}",
+            crate::render::render_pformat_catalogue(&tools),
+            PFormatDialect::instructions()
+        )
+    );
+    assert!(pformat_prompt.contains("Call as: `get_weather[0|<location>|1|<unit>]`"));
+    assert!(pformat_prompt.contains("P-Format"));
+
+    for (format, signature, style) in [
+        (
+            ToolCallFormat::Python,
+            "def get_weather(location: str = None, unit: str = None)",
+            crate::codecall::CodeStyle::Python,
+        ),
+        (
+            ToolCallFormat::TypeScript,
+            "function get_weather(location?: string, unit?: string)",
+            crate::codecall::CodeStyle::TypeScript,
+        ),
+    ] {
+        let prompt = render_prompt_instructions(format, &tools);
+        assert_eq!(
+            prompt,
+            format!(
+                "{}\n{}",
+                crate::render::render_code_catalogue(&tools, style),
+                CodeDialect::instructions(style)
+            ),
+            "{format:?} prompt must preserve its previous catalogue and protocol bytes"
+        );
+        assert!(prompt.contains(signature), "{format:?}");
+        assert!(prompt.contains("<tool_call>"), "{format:?}");
+    }
+
+    let native_prompt = render_prompt_instructions(ToolCallFormat::Native, &tools);
+    assert_eq!(native_prompt, NativeDialect.prompt_instructions(&[]));
+    assert!(native_prompt.contains("native tool-calling"));
+    assert!(!native_prompt.contains("get_weather"));
+}
+
 fn response(text: &str) -> DialectResponse {
     DialectResponse {
         text: Some(text.to_string()),

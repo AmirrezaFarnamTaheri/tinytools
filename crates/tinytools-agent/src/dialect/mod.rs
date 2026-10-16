@@ -65,6 +65,36 @@ pub use xml::XmlDialect;
 use crate::types::ParsedToolCall;
 use tinytools::ToolSpec;
 
+/// Render the complete system-prompt tool protocol for a selected dialect.
+///
+/// This keeps format selection, catalogue spelling, and dialect instructions
+/// together. Hosts can append the returned block to their own system prompt;
+/// they should not independently match `ToolCallFormat` to render syntax.
+#[must_use]
+pub fn render_prompt_instructions(format: ToolCallFormat, tools: &[ToolSpec]) -> String {
+    match format {
+        ToolCallFormat::Native => NativeDialect.prompt_instructions(&[]),
+        ToolCallFormat::Json => crate::render::render_compact_tool_instructions(tools),
+        ToolCallFormat::PFormat => format!(
+            "{}\n{}",
+            crate::render::render_pformat_catalogue(tools),
+            PFormatDialect::instructions()
+        ),
+        ToolCallFormat::Python => render_code_prompt(crate::codecall::CodeStyle::Python, tools),
+        ToolCallFormat::TypeScript => {
+            render_code_prompt(crate::codecall::CodeStyle::TypeScript, tools)
+        }
+    }
+}
+
+fn render_code_prompt(style: crate::codecall::CodeStyle, tools: &[ToolSpec]) -> String {
+    format!(
+        "{}\n{}",
+        crate::render::render_code_catalogue(tools, style),
+        CodeDialect::instructions(style)
+    )
+}
+
 /// One complete way of speaking tools to a model.
 ///
 /// Every method is a face of the same contract, which is why they are one
