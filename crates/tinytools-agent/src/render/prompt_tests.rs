@@ -28,8 +28,8 @@ You may emit multiple tool calls in a single response. After execution, results 
 Arguments are shown as `{name: type, optional?: type}`.\n\n\
 **read_file**: Read a file.\n\
 Arguments: `{limit?: integer, path: string}`\n\
-\\x20\\x20- limit: Maximum number of lines\n\
-\\x20\\x20- path: Relative path to the file\n\n"
+\u{20}\u{20}- limit: Maximum number of lines\n\
+\u{20}\u{20}- path: Relative path to the file\n\n"
     );
 }
 
