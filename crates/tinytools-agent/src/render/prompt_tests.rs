@@ -60,22 +60,38 @@ fn signatures_cover_schema_shapes_and_are_stably_sorted() {
     assert!(rendered.contains("typed: string | null"));
     assert_eq!(compact_type_signature(&json!({})), "unknown");
     assert_eq!(compact_type_signature(&json!({"type":"object"})), "object");
-    assert_eq!(compact_type_signature(&json!({"type":"object","properties":{}})), "{}");
+    assert_eq!(
+        compact_type_signature(&json!({"type":"object","properties":{}})),
+        "{}"
+    );
 }
 
 #[test]
 fn signatures_clip_wide_and_deep_schemas_and_notes_to_first_sentence() {
     fn nested(depth: usize) -> serde_json::Value {
-        if depth == 0 { return json!({"type":"string"}); }
+        if depth == 0 {
+            return json!({"type":"string"});
+        }
         json!({"type":"object","properties":{"child":nested(depth-1)},"required":["child"]})
     }
     assert!(compact_type_signature(&nested(8)).matches('{').count() <= MAX_DEPTH);
     let mut properties = serde_json::Map::new();
-    for index in 0..60 { properties.insert(format!("p{index}"), json!({"type":"string"})); }
+    for index in 0..60 {
+        properties.insert(format!("p{index}"), json!({"type":"string"}));
+    }
     let wide = compact_type_signature(&json!({"type":"object","properties":properties}));
     assert!(wide.chars().count() <= MAX_SIGNATURE_CHARS + 1);
     assert!(wide.ends_with('…'));
-    assert_eq!(argument_notes(&json!({"type":"object"})), Vec::<String>::new());
-    assert_eq!(first_sentence("  Path   may be e.g. nested/file. Ignore this. ", MAX_NOTE_CHARS), "Path may be e.g. nested/file");
+    assert_eq!(
+        argument_notes(&json!({"type":"object"})),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        first_sentence(
+            "  Path   may be e.g. nested/file. Ignore this. ",
+            MAX_NOTE_CHARS
+        ),
+        "Path may be e.g. nested/file"
+    );
     assert!(first_sentence(&"x".repeat(120), MAX_NOTE_CHARS).ends_with('…'));
 }

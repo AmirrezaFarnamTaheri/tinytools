@@ -68,7 +68,11 @@ pub fn render_compact_tool_instructions(tools: &[ToolSpec]) -> String {
     out.push_str("Arguments are shown as `{name: type, optional?: type}`.\n\n");
     for tool in tools {
         let _ = writeln!(out, "**{}**: {}", tool.name, tool.description);
-        let _ = writeln!(out, "Arguments: `{}`", compact_type_signature(&tool.parameters));
+        let _ = writeln!(
+            out,
+            "Arguments: `{}`",
+            compact_type_signature(&tool.parameters)
+        );
         for note in argument_notes(&tool.parameters) {
             let _ = writeln!(out, "  - {note}");
         }
@@ -177,7 +181,11 @@ fn render(schema: &Value, depth: usize) -> String {
             let items = object.get("items").map_or_else(
                 || "unknown".to_string(),
                 |items| {
-                    if depth >= MAX_DEPTH { "unknown".to_string() } else { render(items, depth + 1) }
+                    if depth >= MAX_DEPTH {
+                        "unknown".to_string()
+                    } else {
+                        render(items, depth + 1)
+                    }
                 },
             );
             if items.contains(' ') || items.contains('|') {
@@ -194,8 +202,12 @@ fn render_object(object: &serde_json::Map<String, Value>, depth: usize) -> Strin
     let Some(properties) = object.get("properties").and_then(Value::as_object) else {
         return "object".to_string();
     };
-    if properties.is_empty() { return "{}".to_string(); }
-    if depth >= MAX_DEPTH { return "object".to_string(); }
+    if properties.is_empty() {
+        return "{}".to_string();
+    }
+    if depth >= MAX_DEPTH {
+        return "object".to_string();
+    }
     let required: Vec<&str> = object
         .get("required")
         .and_then(Value::as_array)
@@ -207,9 +219,20 @@ fn render_object(object: &serde_json::Map<String, Value>, depth: usize) -> Strin
             out.push_str(", …");
             break;
         }
-        if index > 0 { out.push_str(", "); }
-        let optional = if required.contains(&name.as_str()) { "" } else { "?" };
-        let _ = write!(out, "{}{optional}: {}", render_property_name(name), render(property, depth + 1));
+        if index > 0 {
+            out.push_str(", ");
+        }
+        let optional = if required.contains(&name.as_str()) {
+            ""
+        } else {
+            "?"
+        };
+        let _ = write!(
+            out,
+            "{}{optional}: {}",
+            render_property_name(name),
+            render(property, depth + 1)
+        );
     }
     out.push('}');
     out
@@ -220,7 +243,9 @@ fn render_property_name(name: &str) -> String {
         .chars()
         .next()
         .is_some_and(|first| first.is_alphabetic() || first == '_' || first == '$')
-        && name.chars().all(|ch| ch.is_alphanumeric() || ch == '_' || ch == '$');
+        && name
+            .chars()
+            .all(|ch| ch.is_alphanumeric() || ch == '_' || ch == '$');
     if is_identifier {
         name.to_string()
     } else {
