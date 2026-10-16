@@ -32,7 +32,7 @@ impl FetchedSiteFailure {
     /// not override the site's status with words such as `forbidden`,
     /// `timeout`, or `service unavailable`.
     #[must_use]
-    pub fn headline<'a>(self, error: &'a str) -> &'a str {
+    pub fn headline(self, error: &str) -> &str {
         error.lines().next().unwrap_or(error)
     }
 }
