@@ -2,7 +2,7 @@
 //!
 //! The provider-neutral harness and host adapters use this block when native
 //! tool schemas are unavailable. Keeping its compact schema rendering beside
-//! the dialect prompt dispatch avoids a dependency from TinyTools back into a
+//! the dialect prompt dispatch avoids a dependency from `TinyTools` back into a
 //! particular harness.
 
 use std::fmt::Write as _;
