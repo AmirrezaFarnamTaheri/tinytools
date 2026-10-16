@@ -94,7 +94,7 @@ fn signatures_clip_wide_and_deep_schemas_and_notes_to_first_sentence() {
             "  Path   may be e.g. nested/file. Ignore this. ",
             MAX_NOTE_CHARS
         ),
-            "Path may be e.g"
+        "Path may be e.g"
     );
     assert!(first_sentence(&"x".repeat(120), MAX_NOTE_CHARS).ends_with('…'));
 }
