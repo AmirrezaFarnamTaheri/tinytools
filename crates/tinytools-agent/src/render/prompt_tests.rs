@@ -77,7 +77,10 @@ fn signatures_clip_wide_and_deep_schemas_and_notes_to_first_sentence() {
     assert!(compact_type_signature(&nested(8)).matches('{').count() <= MAX_DEPTH);
     let mut properties = serde_json::Map::new();
     for index in 0..60 {
-        properties.insert(format!("p{index}"), json!({"type":"string"}));
+        properties.insert(
+            format!("property_name_that_is_long_for_clipping_{index}"),
+            json!({"type":"string"}),
+        );
     }
     let wide = compact_type_signature(&json!({"type":"object","properties":properties}));
     assert!(wide.chars().count() <= MAX_SIGNATURE_CHARS + 1);
