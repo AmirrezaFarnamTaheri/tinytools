@@ -58,11 +58,11 @@ fn prompt_dispatch_pairs_each_format_with_its_catalogue_and_protocol() {
     for (format, signature) in [
         (
             ToolCallFormat::Python,
-            "def get_weather(location: str, unit: str)",
+            "def get_weather(location: str = None, unit: str = None)",
         ),
         (
             ToolCallFormat::TypeScript,
-            "function get_weather(location: string, unit: string)",
+            "function get_weather(location?: string, unit?: string)",
         ),
     ] {
         let prompt = render_prompt_instructions(format, &tools);
