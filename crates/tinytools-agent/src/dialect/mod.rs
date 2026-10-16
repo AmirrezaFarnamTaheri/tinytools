@@ -80,15 +80,19 @@ pub fn render_prompt_instructions(format: ToolCallFormat, tools: &[ToolSpec]) ->
             crate::render::render_pformat_catalogue(tools),
             PFormatDialect::instructions()
         ),
-        ToolCallFormat::Python | ToolCallFormat::TypeScript => {
-            let style = format.code_style().expect("code format has a code style");
-            format!(
-                "{}\n{}",
-                crate::render::render_code_catalogue(tools, style),
-                CodeDialect::instructions(style)
-            )
+        ToolCallFormat::Python => render_code_prompt(crate::codecall::CodeStyle::Python, tools),
+        ToolCallFormat::TypeScript => {
+            render_code_prompt(crate::codecall::CodeStyle::TypeScript, tools)
         }
     }
+}
+
+fn render_code_prompt(style: crate::codecall::CodeStyle, tools: &[ToolSpec]) -> String {
+    format!(
+        "{}\n{}",
+        crate::render::render_code_catalogue(tools, style),
+        CodeDialect::instructions(style)
+    )
 }
 
 /// One complete way of speaking tools to a model.
