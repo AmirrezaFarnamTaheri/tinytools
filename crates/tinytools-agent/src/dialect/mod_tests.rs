@@ -44,6 +44,37 @@ fn weather_schema() -> ToolSpec {
     )
 }
 
+#[test]
+fn prompt_dispatch_pairs_each_format_with_its_catalogue_and_protocol() {
+    let tools = [weather_schema()];
+    let json_prompt = render_prompt_instructions(ToolCallFormat::Json, &tools);
+    assert!(json_prompt.contains("### Available Tools"));
+    assert!(json_prompt.contains("Parameters:"));
+
+    let pformat_prompt = render_prompt_instructions(ToolCallFormat::PFormat, &tools);
+    assert!(pformat_prompt.contains("Call as: `get_weather[0|<location>|1|<unit>]`"));
+    assert!(pformat_prompt.contains("P-Format"));
+
+    for (format, signature) in [
+        (
+            ToolCallFormat::Python,
+            "def get_weather(location: str, unit: str)",
+        ),
+        (
+            ToolCallFormat::TypeScript,
+            "function get_weather(location: string, unit: string)",
+        ),
+    ] {
+        let prompt = render_prompt_instructions(format, &tools);
+        assert!(prompt.contains(signature), "{format:?}");
+        assert!(prompt.contains("<tool_call>"), "{format:?}");
+    }
+
+    let native_prompt = render_prompt_instructions(ToolCallFormat::Native, &tools);
+    assert!(native_prompt.contains("native tool-calling"));
+    assert!(!native_prompt.contains("get_weather"));
+}
+
 fn response(text: &str) -> DialectResponse {
     DialectResponse {
         text: Some(text.to_string()),
