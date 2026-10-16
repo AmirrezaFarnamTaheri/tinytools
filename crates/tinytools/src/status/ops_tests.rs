@@ -311,14 +311,16 @@ fn web_fetch_status_requires_the_owned_opening_shape_and_tool() {
     ));
     // The legacy API remains tool-agnostic and keeps its existing credential
     // interpretation for this same text.
-    assert_eq!(classify(error, false).class, ToolFailureClass::BadCredentials);
+    assert_eq!(
+        classify(error, false).class,
+        ToolFailureClass::BadCredentials
+    );
 }
 
 #[test]
 fn web_fetch_body_cannot_override_status_and_explicit_signals_keep_precedence() {
     use crate::status::{
-        FetchedSiteRecovery as Recovery, ToolFailureClassification as Result,
-        POLICY_DENIED_MARKER,
+        FetchedSiteRecovery as Recovery, POLICY_DENIED_MARKER, ToolFailureClassification as Result,
     };
 
     let ordinary = "HTTP 404 Not Found from example.test; missing\nResponse excerpt: 403 Forbidden unauthorized timed out service unavailable";
@@ -326,7 +328,10 @@ fn web_fetch_body_cannot_override_status_and_explicit_signals_keep_precedence() 
         panic!("structured status should own the result")
     };
     assert_eq!(failure.recovery, Recovery::Ordinary);
-    assert_eq!(failure.headline(ordinary), "HTTP 404 Not Found from example.test; missing");
+    assert_eq!(
+        failure.headline(ordinary),
+        "HTTP 404 Not Found from example.test; missing"
+    );
 
     let refused = "HTTP 403 Forbidden from example.test; denied\nResponse excerpt: service unavailable timed out";
     assert!(matches!(

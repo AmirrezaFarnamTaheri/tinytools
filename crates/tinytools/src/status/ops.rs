@@ -14,7 +14,7 @@
 use super::types::{
     ClassifiedFailure, POLICY_BLOCKED_MARKER, POLICY_DENIED_MARKER, ToolFailureClass,
 };
-use super::web_fetch::{classify_web_fetch_status, FetchedSiteFailure};
+use super::web_fetch::{FetchedSiteFailure, classify_web_fetch_status};
 
 /// A tool-aware failure result that preserves the legacy general classifier
 /// while exposing the structured status contract owned by `web_fetch`.

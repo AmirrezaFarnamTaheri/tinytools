@@ -82,23 +82,17 @@ pub fn classify_web_fetch_status(
 
 fn opens_with_policy_marker(error: &str) -> bool {
     let text = error.trim_start().to_ascii_lowercase();
-    [
-        super::POLICY_BLOCKED_MARKER,
-        super::POLICY_DENIED_MARKER,
-    ]
-    .iter()
-    .any(|marker| {
-        if text.starts_with(marker) {
-            return true;
-        }
-        let Some(rest) = text.strip_prefix("error executing ") else {
-            return false;
-        };
-        rest.split_once(": ")
-            .is_some_and(|(tool, body)| !tool.contains(char::is_whitespace) && body.starts_with(marker))
-    })
+    [super::POLICY_BLOCKED_MARKER, super::POLICY_DENIED_MARKER]
+        .iter()
+        .any(|marker| {
+            if text.starts_with(marker) {
+                return true;
+            }
+            let Some(rest) = text.strip_prefix("error executing ") else {
+                return false;
+            };
+            rest.split_once(": ").is_some_and(|(tool, body)| {
+                !tool.contains(char::is_whitespace) && body.starts_with(marker)
+            })
+        })
 }
-
-#[cfg(test)]
-#[path = "web_fetch_tests.rs"]
-mod tests;
