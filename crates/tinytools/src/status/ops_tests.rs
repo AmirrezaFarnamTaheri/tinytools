@@ -324,13 +324,17 @@ fn web_fetch_body_cannot_override_status_and_explicit_signals_keep_precedence() 
     };
 
     let ordinary = "HTTP 404 Not Found from example.test; missing\nResponse excerpt: 403 Forbidden unauthorized timed out service unavailable";
-    let Result::FetchedSite(failure) = classify_for_tool("web_fetch", ordinary, false) else {
-        panic!("structured status should own the result")
+    let failure = match classify_for_tool("web_fetch", ordinary, false) {
+        Result::FetchedSite(failure) => Some(failure),
+        Result::Classified(_) => None,
     };
-    assert_eq!(failure.recovery, Recovery::Ordinary);
     assert_eq!(
-        failure.headline(ordinary),
-        "HTTP 404 Not Found from example.test; missing"
+        failure.map(|failure| failure.recovery),
+        Some(Recovery::Ordinary)
+    );
+    assert_eq!(
+        failure.map(|failure| failure.headline(ordinary)),
+        Some("HTTP 404 Not Found from example.test; missing")
     );
 
     let refused = "HTTP 403 Forbidden from example.test; denied\nResponse excerpt: service unavailable timed out";
