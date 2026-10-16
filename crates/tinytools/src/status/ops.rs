@@ -14,6 +14,18 @@
 use super::types::{
     ClassifiedFailure, POLICY_BLOCKED_MARKER, POLICY_DENIED_MARKER, ToolFailureClass,
 };
+use super::web_fetch::{classify_web_fetch_status, FetchedSiteFailure};
+
+/// A tool-aware failure result that preserves the legacy general classifier
+/// while exposing the structured status contract owned by `web_fetch`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ToolFailureClassification {
+    /// An ordinary failure classified by [`classify`].
+    Classified(ClassifiedFailure),
+    /// A structured fetched-site HTTP status, with response-body text excluded
+    /// from the verdict. The host supplies its own retry-budget policy.
+    FetchedSite(FetchedSiteFailure),
+}
 
 /// Classify a failed tool call into a user-facing [`ClassifiedFailure`].
 ///
@@ -26,6 +38,25 @@ use super::types::{
 pub fn classify(error_text: &str, timed_out: bool) -> ClassifiedFailure {
     let class = classify_class(error_text, timed_out);
     describe(class)
+}
+
+/// Classify a failure with the tool identity needed for producer-owned result
+/// contracts such as `web_fetch`'s structured HTTP status.
+///
+/// This additive entry point preserves [`classify`]'s behavior for every tool
+/// except a valid `web_fetch` status shape. It does not assign host-specific
+/// retry budgets; `FetchedSiteFailure::recovery` carries the site-versus-tool
+/// distinction for the host to map onto its own policy.
+#[must_use]
+pub fn classify_for_tool(
+    tool: &str,
+    error_text: &str,
+    timed_out: bool,
+) -> ToolFailureClassification {
+    match classify_web_fetch_status(tool, error_text, timed_out) {
+        Some(status) => ToolFailureClassification::FetchedSite(status),
+        None => ToolFailureClassification::Classified(classify(error_text, timed_out)),
+    }
 }
 
 /// The prefix the agent tool adapter puts on an error a tool returned as `Err`.

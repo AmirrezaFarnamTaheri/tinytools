@@ -259,6 +259,97 @@ fn recoverable_flag_matches_category() {
     assert!(!classify("blocked by policy", false).recoverable);
 }
 
+#[test]
+fn tool_aware_web_fetch_classification_keeps_recovery_meanings_distinct() {
+    use crate::status::{FetchedSiteRecovery as Recovery, ToolFailureClassification as Result};
+
+    for (status, recovery) in [
+        (401, Recovery::SiteRefused),
+        (403, Recovery::SiteRefused),
+        (429, Recovery::Transient),
+        (500, Recovery::Transient),
+        (599, Recovery::Transient),
+        (404, Recovery::Ordinary),
+        (410, Recovery::Ordinary),
+        (400, Recovery::Ordinary),
+    ] {
+        let error = format!("HTTP {status} Error from example.test; failed");
+        assert_eq!(
+            classify_for_tool("web_fetch", &error, false),
+            Result::FetchedSite(crate::status::FetchedSiteFailure { status, recovery }),
+            "status {status}"
+        );
+    }
+}
+
+#[test]
+fn web_fetch_status_requires_the_owned_opening_shape_and_tool() {
+    use crate::status::ToolFailureClassification as Result;
+
+    for error in [
+        "403 Forbidden",
+        "HTTP 403",
+        "HTTP 200 OK from example.test; success",
+        "HTTP 404 Not Found from two words; malformed host",
+        "HTTP 404 Not Found from example.test missing delimiter",
+        "quoted result: HTTP 403 Forbidden from example.test; body",
+        "Error executing web_fetch: HTTP 403 Forbidden from example.test; wrapped",
+    ] {
+        assert!(
+            matches!(
+                classify_for_tool("web_fetch", error, false),
+                Result::Classified(_)
+            ),
+            "unexpectedly accepted {error:?}"
+        );
+    }
+
+    let error = "HTTP 403 Forbidden from example.test; denied";
+    assert!(matches!(
+        classify_for_tool("composio_execute", error, false),
+        Result::Classified(_)
+    ));
+    // The legacy API remains tool-agnostic and keeps its existing credential
+    // interpretation for this same text.
+    assert_eq!(classify(error, false).class, ToolFailureClass::BadCredentials);
+}
+
+#[test]
+fn web_fetch_body_cannot_override_status_and_explicit_signals_keep_precedence() {
+    use crate::status::{
+        FetchedSiteRecovery as Recovery, ToolFailureClassification as Result,
+        POLICY_DENIED_MARKER,
+    };
+
+    let ordinary = "HTTP 404 Not Found from example.test; missing\nResponse excerpt: 403 Forbidden unauthorized timed out service unavailable";
+    let Result::FetchedSite(failure) = classify_for_tool("web_fetch", ordinary, false) else {
+        panic!("structured status should own the result")
+    };
+    assert_eq!(failure.recovery, Recovery::Ordinary);
+    assert_eq!(failure.headline(ordinary), "HTTP 404 Not Found from example.test; missing");
+
+    let refused = "HTTP 403 Forbidden from example.test; denied\nResponse excerpt: service unavailable timed out";
+    assert!(matches!(
+        classify_for_tool("web_fetch", refused, false),
+        Result::FetchedSite(_)
+    ));
+    assert_eq!(
+        classify_for_tool("web_fetch", refused, true),
+        Result::Classified(classify(refused, true))
+    );
+
+    let policy = format!("{POLICY_DENIED_MARKER} user declined");
+    assert_eq!(
+        classify_for_tool("web_fetch", &policy, false),
+        Result::Classified(classify(&policy, false))
+    );
+    let wrapped_policy = format!("Error executing web_fetch: {POLICY_DENIED_MARKER} expired");
+    assert_eq!(
+        classify_for_tool("web_fetch", &wrapped_policy, false),
+        Result::Classified(classify(&wrapped_policy, false))
+    );
+}
+
 // Production misfires (Langfuse, Oct 2026): the classifier keyword-scanned the
 // whole result, including the JSON schema the harness echoes back on a
 // validation error and a command's own stderr. Structural shapes a producer

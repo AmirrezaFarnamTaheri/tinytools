@@ -10,10 +10,14 @@
 
 mod ops;
 mod types;
+mod web_fetch;
 
-pub use ops::{classify, describe, tool_execution_error};
+pub use ops::{
+    classify, classify_for_tool, describe, tool_execution_error, ToolFailureClassification,
+};
 pub use types::{
     ClassifiedFailure, FailureCategory, MODULE_FAULT_MARKER, NOT_FOUND_MARKER,
     POLICY_BLOCKED_MARKER, POLICY_DENIED_MARKER, TASK_FAILED_MARKER, ToolFailureClass,
     ToolLifecycleState, UNSUPPORTED_MARKER,
 };
+pub use web_fetch::{FetchedSiteFailure, FetchedSiteRecovery, classify_web_fetch_status, web_fetch_status};
