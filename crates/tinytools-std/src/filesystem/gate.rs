@@ -57,6 +57,23 @@ pub trait FsGate: std::fmt::Debug + Send + Sync {
     /// Used to filter search hits without touching the disk.
     fn is_path_string_allowed(&self, path: &str) -> bool;
 
+    /// Batch form of [`is_path_string_allowed`](Self::is_path_string_allowed).
+    ///
+    /// Answers are in request order and the result has the same length as
+    /// `paths`. The default asks the single-path question once per entry, so
+    /// every existing gate behaves exactly as before. A host that can answer a
+    /// whole batch more cheaply (one round trip to a policy module instead of
+    /// one per path) overrides this.
+    ///
+    /// A caller must treat an answer whose length differs from `paths` as
+    /// every path refused.
+    fn paths_string_allowed(&self, paths: &[String]) -> Vec<bool> {
+        paths
+            .iter()
+            .map(|path| self.is_path_string_allowed(path))
+            .collect()
+    }
+
     /// Resolve an existing path and confirm the host allows it.
     ///
     /// # Errors

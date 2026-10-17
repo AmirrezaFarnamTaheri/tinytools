@@ -103,3 +103,51 @@ async fn hits_the_gate_refuses_are_filtered_out() {
     assert!(r.output().contains("ok.txt"));
     assert!(!r.output().contains("link.txt"), "{}", r.output());
 }
+
+fn seed_many(dir: &std::path::Path, n: usize) {
+    std::fs::create_dir_all(dir.join("sub")).unwrap();
+    for i in 0..n {
+        std::fs::write(dir.join(format!("sub/f{i}.txt")), "x").unwrap();
+    }
+}
+
+#[tokio::test]
+async fn glob_asks_the_gate_once_per_search_however_many_hits() {
+    let dir = TempDir::new().unwrap();
+    seed_many(dir.path(), 40);
+    let wrap = WrapGate::new(TestGate::supervised(dir.path().to_path_buf()));
+    let calls = wrap.batch_calls();
+    let tool = GlobTool::new(wrap.arc());
+    let r = tool.execute(json!({"pattern": "**/*.txt"})).await.unwrap();
+    assert!(!r.is_error, "{}", r.output());
+    assert!(r.output().starts_with("40 match(es)"), "{}", r.output());
+    assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn glob_refuses_every_hit_when_the_batch_answer_has_the_wrong_length() {
+    let dir = TempDir::new().unwrap();
+    seed_many(dir.path(), 5);
+    let wrap = WrapGate::new(TestGate::supervised(dir.path().to_path_buf())).wrong_length_batch();
+    let tool = GlobTool::new(wrap.arc());
+    let r = tool.execute(json!({"pattern": "**/*.txt"})).await.unwrap();
+    assert!(!r.is_error, "{}", r.output());
+    assert_eq!(r.output().trim(), "0 match(es)");
+}
+
+#[tokio::test]
+async fn glob_batch_filtering_matches_the_per_hit_verdicts() {
+    let dir = TempDir::new().unwrap();
+    seed_many(dir.path(), 6);
+    let gate = TestGate::supervised(dir.path().to_path_buf());
+    let tool = GlobTool::new(gate.clone());
+    let r = tool.execute(json!({"pattern": "**/*.txt"})).await.unwrap();
+    let out = r.output();
+    let mut got: Vec<&str> = out.lines().skip(1).collect();
+    got.sort_unstable();
+    let mut want: Vec<String> = (0..6).map(|i| format!("sub/f{i}.txt")).collect();
+    want.retain(|p| gate.is_path_string_allowed(p));
+    want.sort_unstable();
+    assert_eq!(got, want);
+    assert_eq!(got.len(), 6);
+}

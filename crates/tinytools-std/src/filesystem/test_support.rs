@@ -265,6 +265,8 @@ pub struct WrapGate {
     no_budget: bool,
     fixed_path: Option<PathBuf>,
     action_dir: Option<PathBuf>,
+    batch_calls: Arc<AtomicUsize>,
+    wrong_length_batch: bool,
 }
 
 impl WrapGate {
@@ -275,7 +277,21 @@ impl WrapGate {
             no_budget: false,
             fixed_path: None,
             action_dir: None,
+            batch_calls: Arc::new(AtomicUsize::new(0)),
+            wrong_length_batch: false,
         }
+    }
+
+    /// Answer every batch with one verdict too few.
+    #[must_use]
+    pub fn wrong_length_batch(mut self) -> Self {
+        self.wrong_length_batch = true;
+        self
+    }
+
+    /// Counter of `paths_string_allowed` calls this gate has received.
+    pub fn batch_calls(&self) -> Arc<AtomicUsize> {
+        Arc::clone(&self.batch_calls)
     }
 
     /// `is_rate_limited` stays `false` but `record_action` returns `false`.
@@ -335,6 +351,18 @@ impl FsGate for WrapGate {
 
     fn is_path_string_allowed(&self, path: &str) -> bool {
         self.inner.is_path_string_allowed(path)
+    }
+
+    fn paths_string_allowed(&self, paths: &[String]) -> Vec<bool> {
+        self.batch_calls.fetch_add(1, Ordering::SeqCst);
+        let mut answers: Vec<bool> = paths
+            .iter()
+            .map(|path| self.inner.is_path_string_allowed(path))
+            .collect();
+        if self.wrong_length_batch {
+            answers.pop();
+        }
+        answers
     }
 
     async fn validate_path(&self, path: &str) -> Result<PathBuf, String> {
