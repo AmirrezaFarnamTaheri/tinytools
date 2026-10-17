@@ -6,8 +6,8 @@
 //! ## Path-root contract (issue #3357)
 //!
 //! `glob` resolves its search root through the **same** seam the reader tools
-//! use — [`SecurityPolicy::validate_path`] — and filters every hit through
-//! [`SecurityPolicy::is_path_string_allowed`]. This guarantees the core
+//! use — [`FsGate::validate_path`] — and filters every hit through
+//! [`FsGate::paths_string_allowed`] (one batch call per search). This guarantees the core
 //! invariant a discovery tool must hold: **every path `glob` returns is a path
 //! `file_read`/`grep`/`list` can open, and nothing else.**
 //!
