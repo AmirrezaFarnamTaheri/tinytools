@@ -91,5 +91,5 @@ fn the_default_batch_answer_maps_the_single_path_check_in_order() {
         .collect();
     assert_eq!(batch, single);
     assert_eq!(batch, vec![true, false, false, true]);
-    assert!(gate.paths_string_allowed(&[]).is_empty());
+    assert_eq!(gate.paths_string_allowed(&[]), Vec::<bool>::new());
 }
