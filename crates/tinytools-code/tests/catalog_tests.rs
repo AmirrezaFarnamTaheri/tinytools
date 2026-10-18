@@ -151,3 +151,46 @@ fn catalog_capacity_and_metadata_revisions_are_stable() -> Result<(), Box<dyn st
     assert_ne!(before, custom.revision()?);
     Ok(())
 }
+
+#[test]
+fn constraint_node_kinds_must_belong_to_the_selected_grammar()
+-> Result<(), Box<dyn std::error::Error>> {
+    for (language, kind) in [
+        (Language::Rust, "function_item"),
+        (Language::TypeScript, "interface_declaration"),
+        (Language::Tsx, "jsx_element"),
+        (Language::JavaScript, "function_declaration"),
+        (Language::Python, "function_definition"),
+        (Language::Go, "function_declaration"),
+        (Language::Json, "pair"),
+        (Language::Toml, "table"),
+    ] {
+        let mut value = serde_json::to_value(manifest()?)?;
+        value["language"] = serde_json::to_value(language)?;
+        value["forbidden_nodes"] = json!([kind]);
+        value["slots"] = json!([{"name":"body","node_kind":kind}]);
+        serde_json::from_value::<ChunkManifest>(value.clone())?.validate()?;
+
+        value["forbidden_nodes"] = json!(["not_a_grammar_node"]);
+        assert!(matches!(
+            serde_json::from_value::<ChunkManifest>(value.clone())?.validate(),
+            Err(CodeError::InvalidInput(_))
+        ));
+        value["forbidden_nodes"] = json!([kind]);
+        value["slots"][0]["node_kind"] = json!("not_a_grammar_node");
+        assert!(matches!(
+            serde_json::from_value::<ChunkManifest>(value)?.validate(),
+            Err(CodeError::InvalidInput(_))
+        ));
+    }
+
+    let mut custom = manifest()?;
+    for kind in ["function_definition", "unsafe"] {
+        custom.forbidden_nodes = vec![kind.to_owned()];
+        assert!(
+            custom.validate().is_err(),
+            "accepted Rust constraint {kind}"
+        );
+    }
+    Ok(())
+}

@@ -58,3 +58,24 @@ on Rust 1.99.0. It also replaces three assertions flagged by the initial
 upstream Rust 1.99 Clippy run. The initial published source passed CI's strict
 documentation, supply-chain checks and Rust 1.88 build; complete workspace
 tests and per-file coverage still need to pass on the final source.
+
+## Grammar constraint validation
+
+A focused regression reproduced that identifier-shaped unknown node kinds were
+accepted as manifest constraints. Validate slot and forbidden-node kinds against
+the selected grammar's visible named nodes, preserving existing source matching
+and rejecting ineffective constraints before rendering. Test valid kinds across
+all eight grammars, misspellings, another grammar's kind and anonymous keywords;
+then run the final owner gates and unchanged per-file coverage requirement.
+
+The second upstream CI run passed formatting, strict Clippy, the complete
+workspace build, both feature test configurations, documentation, MSRV and
+supply-chain checks. Its only coverage failure was `engine/edit.rs` at 87.5%.
+Add a public-API regression comparing incremental and fresh parsing when a
+replacement character shares a partial UTF-8 prefix or suffix with its previous
+value. Keep the implementation and the 90% threshold unchanged.
+
+This follow-up passed all 43 pure integration tests and the benchmark on Rust
+1.96.1, plus workspace formatting and strict all-target/all-feature Clippy on
+Rust 1.99.0. The final upstream run must confirm the full workspace tests and
+per-file coverage on the published source.

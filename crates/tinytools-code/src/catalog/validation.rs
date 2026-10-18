@@ -2,7 +2,7 @@
 
 use super::{ChunkManifest, ParameterKind};
 use crate::{
-    CodeError,
+    CodeError, Language,
     error::{enforce_limit, invalid},
 };
 use std::collections::BTreeSet;
@@ -27,6 +27,21 @@ fn named(value: &str) -> Result<(), CodeError> {
     text(value, "binding name bytes", 128)?;
     if !identifier(value) {
         return Err(invalid("binding names must be ASCII identifiers"));
+    }
+    Ok(())
+}
+
+fn node_kind(language: Language, value: &str) -> Result<(), CodeError> {
+    named(value)?;
+    let grammar = language.grammar();
+    let id = grammar.id_for_node_kind(value, true);
+    if grammar.node_kind_for_id(id) != Some(value)
+        || !grammar.node_kind_is_named(id)
+        || !grammar.node_kind_is_visible(id)
+    {
+        return Err(invalid(format!(
+            "constraint {value} is not a visible, named node kind in {language:?}"
+        )));
     }
     Ok(())
 }
@@ -103,7 +118,7 @@ pub(super) fn validate(manifest: &ChunkManifest) -> Result<(), CodeError> {
         }
         text(&slot.description, "slot description bytes", 1024)?;
         if let Some(kind) = &slot.node_kind {
-            named(kind)?;
+            node_kind(manifest.language, kind)?;
         }
     }
     for tag in &manifest.tags {
@@ -113,7 +128,7 @@ pub(super) fn validate(manifest: &ChunkManifest) -> Result<(), CodeError> {
         text(dependency, "dependency bytes", 256)?;
     }
     for kind in &manifest.forbidden_nodes {
-        named(kind)?;
+        node_kind(manifest.language, kind)?;
     }
     let serialized = serde_json::to_string(manifest).map_err(|error| invalid(error.to_string()))?;
     enforce_limit("manifest bytes", serialized.len(), 65_536)

@@ -26,8 +26,10 @@ syntax guarantees, not typechecking or semantic reference resolution.
 A typed chunk catalog offers twelve starter patterns. Search and inspect return
 metadata. Rendering expands typed parameters and standalone comment slots in
 one pass; inserted text is never interpreted as another template directive.
-Manifests may constrain generated node kinds. Custom manifests use portable
-relative template paths. Dependency declarations are informational and never
+Manifests may constrain generated node kinds. Constraint names must identify
+visible, named nodes in the selected grammar; unknown or inapplicable names are
+rejected before rendering. Custom manifests use portable relative template
+paths. Dependency declarations are informational and never
 install anything. Template syntax, expansions and output are bounded.
 
 `tinytools-std`'s optional `code` feature exports deferred `ast_outline`,

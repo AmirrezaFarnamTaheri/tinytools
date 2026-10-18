@@ -147,6 +147,25 @@ fn unicode_incremental_edits_match_fresh_parsing() -> Result<(), CodeError> {
 }
 
 #[test]
+fn incremental_edits_expand_partial_utf8_prefixes_and_suffixes() -> Result<(), CodeError> {
+    for (before, after) in [("café", "cafê"), ("é", "Ω")] {
+        let old = format!("fn {before}() -> i32 {{\n    1\n}}\n");
+        let new = format!("fn {after}() -> i32 {{\n    1\n}}\n");
+        let mut engine = CodeEngine::default();
+        engine.analyze("unicode.rs", Language::Rust, &old)?;
+        let mut incremental = engine.analyze("unicode.rs", Language::Rust, &new)?;
+        assert_eq!(incremental.cache_status, CacheStatus::Incremental);
+        assert_eq!(select_symbol(&incremental, after)?.name, after);
+        incremental.cache_status = CacheStatus::Fresh;
+        assert_eq!(
+            incremental,
+            CodeEngine::default().analyze("unicode.rs", Language::Rust, &new)?
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn lru_and_zero_budgets_enforce_retained_source_bounds() -> Result<(), CodeError> {
     let mut engine = CodeEngine::new(CodeLimits {
         max_cache_entries: 2,

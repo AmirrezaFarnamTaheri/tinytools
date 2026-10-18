@@ -63,7 +63,7 @@ pub struct ChunkSlot {
     /// Whether an omitted or empty binding is refused.
     #[serde(default)]
     pub required: bool,
-    /// Optional exact grammar node kind required for this slot's expansion.
+    /// Optional exact visible, named grammar node kind for this slot's expansion.
     #[serde(default)]
     pub node_kind: Option<String>,
     /// Human-readable purpose.
@@ -98,7 +98,7 @@ pub struct ChunkManifest {
     /// Informational package requirements; never automatically installed.
     #[serde(default)]
     pub dependencies: Vec<String>,
-    /// Grammar node kinds forbidden in generated source.
+    /// Visible, named grammar node kinds forbidden in generated source.
     #[serde(default)]
     pub forbidden_nodes: Vec<String>,
 }
