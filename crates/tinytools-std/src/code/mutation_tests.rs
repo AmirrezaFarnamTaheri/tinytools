@@ -235,9 +235,9 @@ async fn inconsistent_chunk_destinations_and_invalid_bindings_never_write() {
     args.as_object_mut().unwrap().remove("expected_revision");
     args["bindings"] = json!({"parameters":{"name":"not an identifier"}});
     assert!(
-        !failure(tool(&tools, "chunk_apply"), args.clone())
+        failure(tool(&tools, "chunk_apply"), args.clone())
             .await
-            .is_empty()
+            .contains("identifier parameter violates its declared kind")
     );
     args["bindings"] = json!({});
     args["selector"] = json!("unnecessary");

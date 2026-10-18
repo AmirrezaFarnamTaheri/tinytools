@@ -41,6 +41,13 @@ effect. Responses are budgeted before publication; files are staged, revision
 guards rechecked, and atomically published with no-clobber creation or
 permission-preserving replacement. Cancellation cannot expose a partial file.
 
+`ast_outline` accepts detail `level` 0 or 1 and defaults to 1. Level 0 returns
+structural records and diagnostics without the `skeleton` field; level 1 includes
+the paged folded source. Invalid levels fail before reading the source file.
+`chunk_search` defaults to at most five results, capped by the host's configured
+`max_page_items`; an explicit positive `limit` may request a larger page within
+that host limit. Both tools preserve the existing byte and paging limits.
+
 ## Acceptance
 
 All grammars, cache paths, ambiguity, revision failures, import prologues,

@@ -17,6 +17,8 @@ impl CodeTool {
         gate: &Arc<dyn FsGate>,
     ) -> anyhow::Result<ToolResult> {
         let options = self.shared.options;
+        ensure!(args.level <= 1, "outline level must be 0 or 1");
+        ensure!(args.start_line > 0, "start_line must be at least 1");
         let limit = arguments::page_size(args.limit, options.max_page_items)?;
         let lines = arguments::page_size(args.line_count, options.max_page_lines)?;
         let language = arguments::language(&args.path, args.language)?;
@@ -26,22 +28,22 @@ impl CodeTool {
             language,
             &snapshot.source,
         )?;
-        response::bounded_json(
-            json!({
-                "path": args.path,
-                "language": language,
-                "revision": report.revision,
-                "symbols": response::records(&report.symbols, args.offset, limit),
-                "references": response::records(&report.references, args.offset, limit),
-                "diagnostics": response::records(&report.diagnostics, args.offset, limit),
-                "symbols_truncated": report.symbols_truncated,
-                "references_truncated": report.references_truncated,
-                "diagnostics_truncated": report.diagnostics_truncated,
-                "skeleton": response::source_page(&report.skeleton, args.start_line, lines)?,
-                "cache_status": report.cache_status
-            }),
-            options.max_output_bytes,
-        )
+        let mut result = json!({
+            "path": args.path,
+            "language": language,
+            "revision": report.revision,
+            "symbols": response::records(&report.symbols, args.offset, limit),
+            "references": response::records(&report.references, args.offset, limit),
+            "diagnostics": response::records(&report.diagnostics, args.offset, limit),
+            "symbols_truncated": report.symbols_truncated,
+            "references_truncated": report.references_truncated,
+            "diagnostics_truncated": report.diagnostics_truncated,
+            "cache_status": report.cache_status
+        });
+        if args.level == 1 {
+            result["skeleton"] = response::source_page(&report.skeleton, args.start_line, lines)?;
+        }
+        response::bounded_json(result, options.max_output_bytes)
     }
 
     pub(super) async fn symbol(
@@ -77,7 +79,10 @@ impl CodeTool {
 
     pub(super) fn search(&self, args: &arguments::Search) -> anyhow::Result<ToolResult> {
         let options = self.shared.options;
-        let limit = arguments::page_size(args.limit, options.max_page_items)?;
+        let limit = arguments::page_size(
+            Some(args.limit.unwrap_or(options.max_page_items.min(5))),
+            options.max_page_items,
+        )?;
         ensure!(
             args.query.len() <= 1024,
             "chunk search query exceeds 1024 bytes"

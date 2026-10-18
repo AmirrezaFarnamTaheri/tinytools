@@ -63,12 +63,12 @@ async fn malformed_manifests_and_nonportable_templates_fail_before_any_effect() 
             "id":"custom.pattern.v1", "summary":"Pattern", "language":"rust", "template_path":path
         })).unwrap()).unwrap();
         assert!(
-            !failure(
+            failure(
                 tool(&tools, "chunk_inspect"),
                 json!({"manifest_path":"manifest.json"})
             )
             .await
-            .is_empty()
+            .contains("template_path must be a portable, relative path")
         );
     }
     std::fs::write(dir.path().join("manifest.json"), "{not json}").unwrap();

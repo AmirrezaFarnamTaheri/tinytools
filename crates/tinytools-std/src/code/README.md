@@ -33,7 +33,7 @@ inspection and patch tools infer it from a supported filename extension.
 
 | Tool | Required arguments | Optional arguments |
 | --- | --- | --- |
-| `ast_outline` | `path` | `language`, `offset`, `limit`, `start_line`, `line_count` |
+| `ast_outline` | `path` | `language`, `level`, `offset`, `limit`, `start_line`, `line_count` |
 | `ast_symbol` | `path`, `selector` | `language`, `start_line`, `line_count` |
 | `ast_patch` | `path`, `expected_revision`, `operation`, `code` | `language`, `selector`, `dry_run`, `start_line`, `line_count` |
 | `chunk_search` | None | `query`, `language`, `offset`, `limit` |
@@ -73,9 +73,16 @@ Successful results contain a JSON block. List pages use this shape:
 ```
 
 `offset` is zero-based. `limit` is positive and bounded by `max_page_items`.
+`chunk_search` defaults to five results, or the configured `max_page_items` if
+that is smaller; an explicit `limit` can select any positive size up to that
+bound. Other record lists default to `max_page_items`.
 Outline symbols, references and diagnostics each have their own page object.
 Their separate truncation flags disclose parser collection limits; a page's
 `total` counts retained records, not records beyond those limits.
+
+`ast_outline` accepts `level: 0` for metadata only, with no `skeleton` field.
+The default `level: 1` includes a folded source page alongside that metadata.
+Other levels and noninteger values are rejected before reading the file.
 
 Source and folded-skeleton pages use this shape:
 

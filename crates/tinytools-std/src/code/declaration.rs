@@ -45,7 +45,7 @@ impl Tool for CodeTool {
     }
 
     fn parameters_schema(&self) -> Value {
-        schema(self.kind)
+        schema(self.kind, self.shared.options.max_page_items)
     }
 
     fn permission_level(&self) -> PermissionLevel {
@@ -146,13 +146,17 @@ impl CodeTool {
     }
 }
 
-fn schema(kind: Kind) -> Value {
+fn schema(kind: Kind, max_page_items: usize) -> Value {
     let mut properties = serde_json::Map::new();
     let required = match kind {
         Kind::Outline | Kind::Symbol | Kind::Patch => {
             properties.insert("path".into(), json!({"type":"string"}));
             properties.insert("language".into(), json!({"type":"string","enum":["rust","typescript","tsx","javascript","python","go","json","toml"]}));
             if kind == Kind::Outline {
+                properties.insert(
+                    "level".into(),
+                    json!({"type":"integer","enum":[0,1],"default":1,"description":"0 returns metadata only; 1 also returns the folded source page"}),
+                );
                 add_record_page(&mut properties);
                 vec!["path"]
             } else {
@@ -172,6 +176,10 @@ fn schema(kind: Kind) -> Value {
             properties.insert("query".into(), json!({"type":"string","default":""}));
             properties.insert("language".into(), json!({"type":"string","enum":["rust","typescript","tsx","javascript","python","go","json","toml"]}));
             add_record_page(&mut properties);
+            properties.insert(
+                "limit".into(),
+                json!({"type":"integer","minimum":1,"maximum":max_page_items,"default":max_page_items.min(5)}),
+            );
             vec![]
         }
         Kind::Inspect | Kind::Apply => {

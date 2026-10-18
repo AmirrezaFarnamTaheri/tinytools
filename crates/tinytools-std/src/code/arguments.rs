@@ -68,6 +68,8 @@ pub(super) fn require_revision(value: &str) -> anyhow::Result<()> {
 pub(super) struct Outline {
     pub(super) path: String,
     pub(super) language: Option<Language>,
+    #[serde(default = "outline_level")]
+    pub(super) level: u8,
     #[serde(default)]
     pub(super) offset: usize,
     pub(super) limit: Option<usize>,
@@ -145,5 +147,9 @@ pub(super) struct Apply {
 }
 
 const fn first_line() -> usize {
+    1
+}
+
+const fn outline_level() -> u8 {
     1
 }

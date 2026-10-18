@@ -9,7 +9,8 @@ Spec: [Structural code and boilerplate](../specs/structural-code.md).
 3. Add typed manifests, twelve patterns and one-pass rendering; test injection,
    generated-node and expansion-budget failures.
 4. Add the optional `crates/tinytools-std/src/code/` adapter with host gates,
-   bounded I/O, previews and revision-guarded atomic publication tests.
+   bounded I/O, previews and revision-guarded atomic publication tests. Pin
+   outline levels 0/1 and the five-result search default with API regressions.
 5. Update public/module docs and benchmark. Checkpoint focused validated source.
 6. Run formatting, strict all-target/all-feature Clippy, build and tests; then
    default-feature tests, strict rustdoc and the unchanged per-file coverage gate.
@@ -42,3 +43,18 @@ byte budgets, late authority revocation, the last available action, stale
 revisions, custom template containment, cancellation and atomic publication.
 This is a 73-test source checkpoint. The complete workspace gates, default
 tests, strict rustdoc, declared MSRV and per-file coverage remain pending.
+
+## Compatibility follow-up
+
+After the initial source checkpoint, align the deferred tool contracts with the
+consumer roadmap: default `ast_outline` to level 1, omit `skeleton` at level 0,
+and reject other levels before file reads. Default `chunk_search` to
+`min(5, max_page_items)` while retaining explicit bounded page limits. Update
+the schemas and native tool documentation alongside focused regressions before
+running the complete owner gates on the resulting source.
+
+The follow-up passed all 35 native tests on Rust 1.96.1 and workspace formatting
+on Rust 1.99.0. It also replaces three assertions flagged by the initial
+upstream Rust 1.99 Clippy run. The initial published source passed CI's strict
+documentation, supply-chain checks and Rust 1.88 build; complete workspace
+tests and per-file coverage still need to pass on the final source.
