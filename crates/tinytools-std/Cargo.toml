@@ -38,7 +38,7 @@ rustix = { version = "1", default-features = false, features = ["fs", "process"]
 serde_json = { workspace = true }
 # `curl` reports the SHA-256 of what it downloaded.
 sha2 = "0.11"
-tinytools = { path = "../tinytools", version = "0.5.0" }
+tinytools = { path = "../tinytools", version = "0.6.0" }
 # `spawn_blocking` keeps synchronous system DNS resolution off async executor threads;
 # `fs`/`process`/`time` serve the filesystem tools.
 tokio = { version = "1", default-features = false, features = ["rt", "sync", "fs", "process", "time", "io-util", "macros"] }
