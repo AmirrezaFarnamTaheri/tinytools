@@ -15,6 +15,8 @@
 //! - [`detect_tools`] — `PATH` probing and the read-only `detect_tools` tool.
 //! - [`sanitize`] — lexical sanitization and truncation for untrusted metadata.
 //! - [`timeout`] — tool timeout bounds, process-group kill and child reaping.
+//! - `code` (optional feature) — gated structural inspection and revision-safe
+//!   edits, with typed boilerplate and bounded JSON receipts.
 //!
 //! # Example
 //!
@@ -32,6 +34,11 @@
 //! assert_eq!(tool.name(), "detect_tools");
 //! assert_eq!(tool.permission_level(), PermissionLevel::ReadOnly);
 //! ```
+
+#[cfg(feature = "code")]
+pub mod code;
+#[cfg(feature = "code")]
+pub use code::{CodeToolOptions, code_tools, code_tools_with_options};
 
 pub mod detect_tools;
 pub mod file_state;
