@@ -65,6 +65,55 @@ pub use xml::XmlDialect;
 use crate::types::ParsedToolCall;
 use tinytools::ToolSpec;
 
+/// Render the complete system-prompt tool protocol for a selected dialect.
+///
+/// This keeps format selection, catalogue spelling, and dialect instructions
+/// together. Hosts can append the returned block to their own system prompt;
+/// they should not independently match `ToolCallFormat` to render syntax.
+#[must_use]
+pub fn render_prompt_instructions(format: ToolCallFormat, tools: &[ToolSpec]) -> String {
+    match format {
+        ToolCallFormat::Native => NativeDialect.prompt_instructions(&[]),
+        ToolCallFormat::Json => crate::render::render_compact_tool_instructions(tools),
+        ToolCallFormat::PFormat => format!(
+            "{}\n{}",
+            crate::render::render_pformat_catalogue(tools),
+            PFormatDialect::instructions()
+        ),
+        ToolCallFormat::Python => render_code_prompt(crate::codecall::CodeStyle::Python, tools),
+        ToolCallFormat::TypeScript => {
+            render_code_prompt(crate::codecall::CodeStyle::TypeScript, tools)
+        }
+    }
+}
+
+/// Render the selected dialect's dispatcher instructions for a prompt section.
+///
+/// Text dialects leave their signature catalogue to the host's tool section,
+/// so P-Format and code-style instructions contain protocol text only. The
+/// JSON dialect embeds its full-schema catalogue as part of its protocol, and
+/// native dispatch needs no catalogue in the prompt.
+#[must_use]
+pub fn render_protocol_instructions(format: ToolCallFormat, tools: &[ToolSpec]) -> String {
+    match format {
+        ToolCallFormat::Native => NativeDialect.prompt_instructions(&[]),
+        ToolCallFormat::Json => crate::render::render_compact_tool_instructions(tools),
+        ToolCallFormat::PFormat => PFormatDialect::instructions(),
+        ToolCallFormat::Python => CodeDialect::instructions(crate::codecall::CodeStyle::Python),
+        ToolCallFormat::TypeScript => {
+            CodeDialect::instructions(crate::codecall::CodeStyle::TypeScript)
+        }
+    }
+}
+
+fn render_code_prompt(style: crate::codecall::CodeStyle, tools: &[ToolSpec]) -> String {
+    format!(
+        "{}\n{}",
+        crate::render::render_code_catalogue(tools, style),
+        CodeDialect::instructions(style)
+    )
+}
+
 /// One complete way of speaking tools to a model.
 ///
 /// Every method is a face of the same contract, which is why they are one
