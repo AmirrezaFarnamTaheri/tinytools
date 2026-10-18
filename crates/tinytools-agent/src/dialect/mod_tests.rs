@@ -56,6 +56,11 @@ fn prompt_dispatch_pairs_each_format_with_its_catalogue_and_protocol() {
     assert!(json_prompt.contains("### Available Tools"));
     assert!(json_prompt.contains("Arguments:"));
     assert!(json_prompt.contains("{location?: string, unit?: string}"));
+    assert_eq!(
+        render_protocol_instructions(ToolCallFormat::Json, &tools),
+        json_prompt,
+        "JSON dispatcher instructions embed their required schema catalogue"
+    );
 
     let pformat_prompt = render_prompt_instructions(ToolCallFormat::PFormat, &tools);
     assert_eq!(
@@ -68,6 +73,9 @@ fn prompt_dispatch_pairs_each_format_with_its_catalogue_and_protocol() {
     );
     assert!(pformat_prompt.contains("Call as: `get_weather[0|<location>|1|<unit>]`"));
     assert!(pformat_prompt.contains("P-Format"));
+    let pformat_protocol = render_protocol_instructions(ToolCallFormat::PFormat, &tools);
+    assert_eq!(pformat_protocol, PFormatDialect::instructions());
+    assert!(!pformat_protocol.contains("Look up the weather"));
 
     for (format, signature, style) in [
         (
@@ -93,10 +101,17 @@ fn prompt_dispatch_pairs_each_format_with_its_catalogue_and_protocol() {
         );
         assert!(prompt.contains(signature), "{format:?}");
         assert!(prompt.contains("<tool_call>"), "{format:?}");
+        let protocol = render_protocol_instructions(format, &tools);
+        assert_eq!(protocol, CodeDialect::instructions(style));
+        assert!(!protocol.contains("Look up the weather"), "{format:?}");
     }
 
     let native_prompt = render_prompt_instructions(ToolCallFormat::Native, &tools);
     assert_eq!(native_prompt, NativeDialect.prompt_instructions(&[]));
+    assert_eq!(
+        render_protocol_instructions(ToolCallFormat::Native, &tools),
+        native_prompt
+    );
     assert!(native_prompt.contains("native tool-calling"));
     assert!(!native_prompt.contains("get_weather"));
 }

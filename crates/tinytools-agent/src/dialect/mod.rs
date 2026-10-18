@@ -87,6 +87,25 @@ pub fn render_prompt_instructions(format: ToolCallFormat, tools: &[ToolSpec]) ->
     }
 }
 
+/// Render the selected dialect's dispatcher instructions for a prompt section.
+///
+/// Text dialects leave their signature catalogue to the host's tool section,
+/// so P-Format and code-style instructions contain protocol text only. The
+/// JSON dialect embeds its full-schema catalogue as part of its protocol, and
+/// native dispatch needs no catalogue in the prompt.
+#[must_use]
+pub fn render_protocol_instructions(format: ToolCallFormat, tools: &[ToolSpec]) -> String {
+    match format {
+        ToolCallFormat::Native => NativeDialect.prompt_instructions(&[]),
+        ToolCallFormat::Json => crate::render::render_compact_tool_instructions(tools),
+        ToolCallFormat::PFormat => PFormatDialect::instructions(),
+        ToolCallFormat::Python => CodeDialect::instructions(crate::codecall::CodeStyle::Python),
+        ToolCallFormat::TypeScript => {
+            CodeDialect::instructions(crate::codecall::CodeStyle::TypeScript)
+        }
+    }
+}
+
 fn render_code_prompt(style: crate::codecall::CodeStyle, tools: &[ToolSpec]) -> String {
     format!(
         "{}\n{}",
