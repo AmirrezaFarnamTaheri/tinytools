@@ -32,7 +32,10 @@ jobs:
           mkdir -p merge-audit
           echo "$incoming" > merge-audit/upstream-sha.txt
           if git merge --no-commit --no-ff "$incoming"; then
-            git rm -- .github/workflows/openhuman-tinytools-sync-once.yml
+            # GitHub Actions' token lacks workflows permission; keep the branch's
+            # workflow files unchanged and carry upstream CI YAML over through
+            # the user-authorized GitHub connector after this content merge.
+            git restore --source=HEAD --staged --worktree -- .github/workflows
             git diff --cached --check
             git commit -m "merge: onboard canonical TinyTools main ($incoming)"
             git push origin "HEAD:refs/heads/$branch"
