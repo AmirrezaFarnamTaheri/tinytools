@@ -34,6 +34,7 @@
 //!   tool reports before it finishes.
 //! - [`workspace`] — [`WorkspaceDescriptor`], the root a tool may touch.
 //! - [`naming`] — rendering a call for a human.
+//! - [`sanitize`] — lexical sanitization and truncation for untrusted metadata.
 //! - [`shared`] — [`SharedTool`], [`share_belt`] and [`owned_belt`]: one
 //!   built `Arc<dyn Tool>` handed out as many owned `Box<dyn Tool>` belts.
 //! - [`rank`] — [`ToolRanker`], ranking a catalogue of tools against an
@@ -120,6 +121,7 @@ pub mod rank;
 pub mod registry;
 pub mod result;
 pub mod rules;
+pub mod sanitize;
 pub mod shared;
 pub mod spec;
 pub mod status;
