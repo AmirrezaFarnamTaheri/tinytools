@@ -6,8 +6,8 @@
 //! ## Path-root contract (issue #3357)
 //!
 //! `glob` resolves its search root through the **same** seam the reader tools
-//! use — [`SecurityPolicy::validate_path`] — and filters every hit through
-//! [`SecurityPolicy::is_path_string_allowed`]. This guarantees the core
+//! use — [`FsGate::validate_path`] — and filters every hit through
+//! [`FsGate::paths_string_allowed`] (one batch call per search). This guarantees the core
 //! invariant a discovery tool must hold: **every path `glob` returns is a path
 //! `file_read`/`grep`/`list` can open, and nothing else.**
 //!
@@ -248,8 +248,8 @@ impl GlobTool {
 ///   inside the action sandbox (so `file_read("src/a.rs")` works), otherwise
 ///   the **absolute** path (so `file_read` resolves it as-is via a trusted
 ///   root).
-/// - Every hit is filtered through [`SecurityPolicy::is_path_string_allowed`]
-///   on that exact returned string, so `glob` never surfaces a path the readers
+/// - Every hit is filtered through [`FsGate::paths_string_allowed`] (one batch
+///   call per search) on that exact returned string, so `glob` never surfaces a path the readers
 ///   would reject (internal state, forbidden trees, symlink escapes).
 ///
 /// `max_results` bounds the returned list, not the walk: the full tree under
@@ -262,7 +262,7 @@ fn collect_matches(
     pattern: &Pattern,
     max_results: usize,
 ) -> (Vec<String>, bool) {
-    let mut hits: Vec<(std::time::SystemTime, String)> = Vec::new();
+    let mut candidates: Vec<(std::time::SystemTime, String)> = Vec::new();
 
     for entry in WalkDir::new(base)
         .follow_links(false)
@@ -291,18 +291,34 @@ fn collect_matches(
             Err(_) => abs.to_string_lossy().to_string(),
         };
 
-        // Fail-closed: only surface paths the readers would also accept.
-        if !gate.is_path_string_allowed(&display) {
-            log::trace!("[tools:glob] path filtered by policy: '{display}'");
-            continue;
-        }
-
         let mtime = entry
             .metadata()
             .ok()
             .and_then(|m| m.modified().ok())
             .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-        hits.push((mtime, display));
+        candidates.push((mtime, display));
+    }
+
+    // Fail-closed: only surface paths the readers would also accept. The whole
+    // walk is asked in ONE batch so a host that answers over a bus pays a
+    // single round trip per search, not one per hit.
+    let displays: Vec<String> = candidates.iter().map(|(_, p)| p.clone()).collect();
+    let verdicts = gate.paths_string_allowed(&displays);
+    if verdicts.len() != candidates.len() {
+        log::warn!(
+            "[tools:glob] gate answered {} verdict(s) for {} path(s); refusing every hit",
+            verdicts.len(),
+            candidates.len()
+        );
+        candidates.clear();
+    }
+    let mut hits: Vec<(std::time::SystemTime, String)> = Vec::with_capacity(candidates.len());
+    for ((mtime, display), allowed) in candidates.into_iter().zip(verdicts) {
+        if allowed {
+            hits.push((mtime, display));
+        } else {
+            log::trace!("[tools:glob] path filtered by policy: '{display}'");
+        }
     }
 
     // Newest first.

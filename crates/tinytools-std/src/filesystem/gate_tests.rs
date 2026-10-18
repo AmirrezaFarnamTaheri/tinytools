@@ -73,3 +73,23 @@ async fn the_fake_gate_refuses_what_a_real_policy_would() {
     // A NUL byte is never a path.
     assert!(!gate.is_path_string_allowed("a\0b"));
 }
+
+#[test]
+fn the_default_batch_answer_maps_the_single_path_check_in_order() {
+    let dir = tempfile::tempdir().unwrap();
+    let gate = TestGate::supervised(dir.path().to_path_buf());
+    let paths = vec![
+        "ok.txt".to_string(),
+        "../escape.txt".to_string(),
+        "a\0b".to_string(),
+        "sub/ok.rs".to_string(),
+    ];
+    let batch = gate.paths_string_allowed(&paths);
+    let single: Vec<bool> = paths
+        .iter()
+        .map(|p| gate.is_path_string_allowed(p))
+        .collect();
+    assert_eq!(batch, single);
+    assert_eq!(batch, vec![true, false, false, true]);
+    assert_eq!(gate.paths_string_allowed(&[]), Vec::<bool>::new());
+}
