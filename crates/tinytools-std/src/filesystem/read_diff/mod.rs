@@ -112,11 +112,10 @@ impl Tool for ReadDiffTool {
             "[read_diff] running git diff"
         );
 
-        let output = tokio::process::Command::new("git")
-            .args(&git_args)
-            .current_dir(&workspace_dir)
-            .output()
-            .await?;
+        let mut cmd = tokio::process::Command::new("git");
+        cmd.args(&git_args).current_dir(&workspace_dir);
+        crate::timeout::hide_console_window(cmd.as_std_mut());
+        let output = cmd.output().await?;
 
         if output.status.success() {
             let diff = String::from_utf8_lossy(&output.stdout);
