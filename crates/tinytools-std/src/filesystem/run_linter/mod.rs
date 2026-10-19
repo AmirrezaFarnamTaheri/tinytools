@@ -100,19 +100,18 @@ impl Tool for RunLinterTool {
             linter
         };
 
-        let output = match linter {
+        let mut cmd = match linter {
             "clippy" => {
-                tokio::process::Command::new("cargo")
-                    .args([
-                        "clippy",
-                        "--message-format=short",
-                        "--",
-                        "-W",
-                        "clippy::all",
-                    ])
-                    .current_dir(&workspace_dir)
-                    .output()
-                    .await?
+                let mut cmd = tokio::process::Command::new("cargo");
+                cmd.args([
+                    "clippy",
+                    "--message-format=short",
+                    "--",
+                    "-W",
+                    "clippy::all",
+                ])
+                .current_dir(&workspace_dir);
+                cmd
             }
             "eslint" => {
                 let path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
@@ -122,16 +121,17 @@ impl Tool for RunLinterTool {
                              (no absolute paths or '..')",
                     ));
                 }
-                tokio::process::Command::new("npx")
-                    .args(["eslint", "--format", "compact", path])
-                    .current_dir(&workspace_dir)
-                    .output()
-                    .await?
+                let mut cmd = tokio::process::Command::new("npx");
+                cmd.args(["eslint", "--format", "compact", path])
+                    .current_dir(&workspace_dir);
+                cmd
             }
             other => {
                 return Ok(ToolResult::error(format!("Unknown linter: {other}")));
             }
         };
+        crate::timeout::hide_console_window(cmd.as_std_mut());
+        let output = cmd.output().await?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);

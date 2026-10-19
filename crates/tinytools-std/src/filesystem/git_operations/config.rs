@@ -277,6 +277,7 @@ pub(crate) fn suppress_ambient_git_config(
 pub(crate) fn hardened_git(dir: &Path) -> tokio::process::Command {
     let mut cmd = tokio::process::Command::new("git");
     suppress_ambient_git_config(&mut cmd).current_dir(dir);
+    crate::timeout::hide_console_window(cmd.as_std_mut());
     for kv in NEUTRALISED_CONFIG {
         cmd.arg("-c").arg(kv);
     }
@@ -353,6 +354,7 @@ pub(crate) fn disallowed_config_refusal(dir: &Path, key: &str) -> String {
 pub(crate) async fn first_disallowed_repo_config_key(dir: &Path) -> anyhow::Result<Option<String>> {
     let mut cmd = tokio::process::Command::new("git");
     suppress_ambient_git_config(&mut cmd).current_dir(dir);
+    crate::timeout::hide_console_window(cmd.as_std_mut());
     let output = cmd.args(["config", "--list", "--null"]).output().await?;
 
     if !output.status.success() {
