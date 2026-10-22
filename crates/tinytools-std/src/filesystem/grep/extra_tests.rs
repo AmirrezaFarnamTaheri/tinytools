@@ -52,3 +52,22 @@ async fn non_utf8_files_are_skipped_and_others_still_match() {
     assert!(r.output().contains("t.txt"), "{}", r.output());
     assert!(!r.output().contains("bin.dat"));
 }
+
+// grep must not return lines from files the gate refuses to read.
+#[tokio::test]
+async fn hits_the_gate_refuses_are_not_returned() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join(".env"), "API_KEY=sk-secret").unwrap();
+    std::fs::write(dir.path().join("ok.txt"), "API_KEY=placeholder").unwrap();
+    let gate = crate::filesystem::test_support::WrapGate::new(TestGate::supervised(
+        dir.path().to_path_buf(),
+    ))
+    .deny_suffix(".env")
+    .arc();
+    let r = GrepTool::new(gate)
+        .execute(json!({"pattern": "API_KEY"}))
+        .await
+        .unwrap();
+    assert!(r.output().contains("ok.txt"), "{}", r.output());
+    assert!(!r.output().contains("sk-secret"), "{}", r.output());
+}
