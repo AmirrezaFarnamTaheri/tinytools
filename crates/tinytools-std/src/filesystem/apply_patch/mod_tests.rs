@@ -644,3 +644,34 @@ async fn apply_patch_restores_earlier_writes_when_a_later_write_fails() {
         "no iteration wrote a file before the failing one"
     );
 }
+
+// Two spellings of one file in a batch must apply both edits (or refuse),
+// never hang or lose one.
+#[tokio::test]
+async fn two_spellings_of_one_path_apply_both_edits() {
+    let dir = tempfile::TempDir::new().unwrap();
+    tokio::fs::write(dir.path().join("a.txt"), "one two three")
+        .await
+        .unwrap();
+    let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tool.execute(json!({
+            "edits": [
+                { "path": "a.txt", "old_string": "one", "new_string": "ONE" },
+                { "path": "./a.txt", "old_string": "two", "new_string": "TWO" }
+            ]
+        })),
+    )
+    .await
+    .expect("apply_patch hung on two spellings of one path")
+    .unwrap();
+    let updated = tokio::fs::read_to_string(dir.path().join("a.txt"))
+        .await
+        .unwrap();
+    assert!(
+        result.is_error || updated == "ONE TWO three",
+        "reported {:?} but file is {updated:?}",
+        result.output()
+    );
+}

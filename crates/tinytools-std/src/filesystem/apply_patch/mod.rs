@@ -211,9 +211,38 @@ impl ApplyPatchTool {
                      Pass the exact text to replace, or write to a new path to create a file."
                 )));
             }
+
+            // Symlink check must happen on the *unresolved* path —
+            // canonicalize resolves symlinks, so a check after that
+            // point would never see the link.
+            if let Ok(meta) = tokio::fs::symlink_metadata(path_policy.action_dir().join(path)).await
+                && meta.file_type().is_symlink()
+            {
+                return Ok(ToolResult::error(format!(
+                    "edit[{i}]: refusing to edit through symlink"
+                )));
+            }
+
+            // Security check: validate path string, resolve symlinks, confirm
+            // workspace containment. A create has no file to canonicalize,
+            // so it resolves through the parent — the same gate
+            // `file_write` uses, which walks up to the deepest existing
+            // ancestor and still checks it for symlink escapes. Resolving
+            // here, once, means two spellings of one file (`a.txt`,
+            // `./a.txt`) share one lock, one check and one buffer below.
+            let resolved = if create {
+                path_policy.validate_parent_path(path).await
+            } else {
+                path_policy.validate_path(path).await
+            };
+            let resolved = match resolved {
+                Ok(p) => p,
+                Err(msg) => return Ok(ToolResult::error(format!("edit[{i}]: {msg}"))),
+            };
             parsed.push(ParsedEdit {
                 index: i,
                 path: path.to_string(),
+                resolved,
                 old_string: old_string.to_string(),
                 new_string: new_string.to_string(),
                 replace_all,
@@ -222,25 +251,17 @@ impl ApplyPatchTool {
         }
 
         // Acquire per-path locks for all unique paths before any reads.
-        let unique_paths: Vec<String> = {
+        let unique_paths: Vec<&PathBuf> = {
             let mut seen = std::collections::HashSet::new();
             parsed
                 .iter()
-                .filter_map(|e| {
-                    if seen.insert(e.path.clone()) {
-                        Some(e.path.clone())
-                    } else {
-                        None
-                    }
-                })
+                .map(|e| &e.resolved)
+                .filter(|p| seen.insert(*p))
                 .collect()
         };
         let mut _path_guards = Vec::new();
-        for p in &unique_paths {
-            let full = path_policy.action_dir().join(p);
-            if let Ok(resolved) = tokio::fs::canonicalize(&full).await
-                && let Some(guard) = file_state::acquire_path_lock(&resolved).await
-            {
+        for resolved in &unique_paths {
+            if let Some(guard) = file_state::acquire_path_lock(resolved).await {
                 _path_guards.push(guard);
             }
         }
@@ -249,11 +270,8 @@ impl ApplyPatchTool {
         // not refused here: an anchored `old_string` match proves the agent saw
         // the text it replaces. Only file_write enforces the partial-read guard.
         if let Some(agent_id) = file_state::current_file_state_agent_id() {
-            for p in &unique_paths {
-                let full = path_policy.action_dir().join(p);
-                if let Ok(resolved) = tokio::fs::canonicalize(&full).await
-                    && let Some(msg) = file_state::check_stale_read(&agent_id, &resolved)
-                {
+            for resolved in &unique_paths {
+                if let Some(msg) = file_state::check_stale_read(&agent_id, resolved) {
                     tracing::debug!(
                         agent = %agent_id,
                         path = %resolved.display(),
@@ -264,45 +282,12 @@ impl ApplyPatchTool {
             }
         }
 
-        // Resolve paths + load file contents (once per file). Apply edits in
+        // Load file contents (once per resolved file). Apply edits in
         // memory; if any edit fails, return without writing.
-        let mut buffers: HashMap<String, FileBuffer> = HashMap::new();
+        let mut buffers: HashMap<PathBuf, FileBuffer> = HashMap::new();
         for edit in &parsed {
-            if !buffers.contains_key(&edit.path) {
-                let full = path_policy.action_dir().join(&edit.path);
-
-                // Symlink check must happen on the *unresolved* path —
-                // canonicalize resolves symlinks, so a check after that
-                // point would never see the link.
-                if let Ok(meta) = tokio::fs::symlink_metadata(&full).await
-                    && meta.file_type().is_symlink()
-                {
-                    return Ok(ToolResult::error(format!(
-                        "edit[{}]: refusing to edit through symlink",
-                        edit.index
-                    )));
-                }
-
-                // Security check: validate path string, resolve symlinks, confirm
-                // workspace containment. A create has no file to canonicalize,
-                // so it resolves through the parent — the same gate
-                // `file_write` uses, which walks up to the deepest existing
-                // ancestor and still checks it for symlink escapes.
-                let resolved = if edit.create {
-                    match path_policy.validate_parent_path(&edit.path).await {
-                        Ok(p) => p,
-                        Err(msg) => {
-                            return Ok(ToolResult::error(format!("edit[{}]: {msg}", edit.index)));
-                        }
-                    }
-                } else {
-                    match path_policy.validate_path(&edit.path).await {
-                        Ok(p) => p,
-                        Err(msg) => {
-                            return Ok(ToolResult::error(format!("edit[{}]: {msg}", edit.index)));
-                        }
-                    }
-                };
+            if !buffers.contains_key(&edit.resolved) {
+                let resolved = edit.resolved.clone();
                 if edit.create {
                     if let Some(parent) = resolved.parent()
                         && let Err(e) = tokio::fs::create_dir_all(parent).await
@@ -313,8 +298,9 @@ impl ApplyPatchTool {
                         )));
                     }
                     buffers.insert(
-                        edit.path.clone(),
+                        resolved.clone(),
                         FileBuffer {
+                            path: edit.path.clone(),
                             resolved,
                             original: None,
                             contents: edit.new_string.clone(),
@@ -342,8 +328,9 @@ impl ApplyPatchTool {
                     }
                 };
                 buffers.insert(
-                    edit.path.clone(),
+                    resolved.clone(),
                     FileBuffer {
+                        path: edit.path.clone(),
                         resolved,
                         original: Some(contents.clone()),
                         contents,
@@ -362,7 +349,7 @@ impl ApplyPatchTool {
                 )));
             }
 
-            let buf = buffers.get_mut(&edit.path).unwrap();
+            let buf = buffers.get_mut(&edit.resolved).unwrap();
             let count = buf.contents.matches(&edit.old_string).count();
             if count == 0 {
                 return Ok(ToolResult::error(format!(
@@ -390,7 +377,8 @@ impl ApplyPatchTool {
         // for the i-1 already-written files from the in-memory snapshot.
         let mut summary: Vec<String> = Vec::new();
         let mut written: Vec<&FileBuffer> = Vec::new();
-        for (path, buf) in &buffers {
+        for buf in buffers.values() {
+            let path = &buf.path;
             if let Err(e) = tokio::fs::write(&buf.resolved, &buf.contents).await {
                 let restore_errors = restore_originals(&written).await;
                 let suffix = if restore_errors.is_empty() {
@@ -445,6 +433,8 @@ async fn restore_originals(written: &[&FileBuffer]) -> Vec<String> {
 struct ParsedEdit {
     index: usize,
     path: String,
+    /// The gate-resolved path; keys the locks, checks and buffers.
+    resolved: PathBuf,
     old_string: String,
     new_string: String,
     replace_all: bool,
@@ -454,6 +444,8 @@ struct ParsedEdit {
 }
 
 struct FileBuffer {
+    /// The first spelling of this file in the batch, for messages.
+    path: String,
     resolved: PathBuf,
     /// Snapshot of the file's contents as we first read them.
     /// Used to restore on a partial-write failure. `None` for a file this batch
