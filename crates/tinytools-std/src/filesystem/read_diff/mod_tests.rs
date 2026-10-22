@@ -144,7 +144,7 @@ async fn a_workspace_descriptor_overrides_the_configured_directory() {
 }
 
 /// A model-chosen `base` that looks like an option must never reach git as
-/// one: `--output=<file>` would let this ReadOnly tool write a file.
+/// one: `--output=<file>` would let this read-only tool write a file.
 #[tokio::test]
 async fn a_base_that_looks_like_an_option_is_rejected() {
     let tmp = repo_with_change();
