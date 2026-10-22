@@ -10,7 +10,10 @@ The pipeline accepts untrusted free-form tool, skill, and capability metadata
 and returns text suitable for inclusion in an agent's tool-use context. It
 applies these transformations in order:
 
-1. Remove ASCII control characters except newline and tab.
+1. Remove control characters (C0, DEL, C1) except newline and tab, and the
+   invisible format characters listed in `INVISIBLE_FORMAT_CHARS` (zero-width
+   space, bidi marks, embeddings, overrides and isolates, word joiner, BOM).
+   Keep ZWNJ and ZWJ, which emoji sequences and Indic and Persian text need.
 2. Remove the known instruction-fence tokens listed in
    `INSTRUCTION_FENCE_TOKENS`, matching ASCII case-insensitively. Continue
    recognizing tokens formed when an earlier token is removed and its
