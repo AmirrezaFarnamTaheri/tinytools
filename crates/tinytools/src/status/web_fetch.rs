@@ -1,8 +1,8 @@
 //! The status shape emitted by the standard `web_fetch` tool.
 //!
-//! This parser and its disposition live in the lightweight `tinytools` crate so
-//! a host can use the producer's exact result contract without depending on
-//! `tinytools-std` (which depends on `tinytools`).
+//! This parser and its disposition live in `tinytools` so a host can use the
+//! producer's exact result contract without a separate tool-implementation
+//! crate.
 
 /// The safe recovery meaning of a structured HTTP failure from a fetched site.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
