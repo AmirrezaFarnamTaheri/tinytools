@@ -92,8 +92,10 @@ impl Tool for FileWriteTool {
     /// an external process to win the race — outside this gate's threat model,
     /// which governs the agent, not concurrent writers — and `execute()` still
     /// enforces workspace containment + symlink refusal regardless, so a write
-    /// that slips through as "create" cannot escape the sandbox. We therefore
-    /// do not re-probe in `execute()`.
+    /// that slips through as "create" cannot escape the sandbox. `execute()`
+    /// does re-probe for one case: a context workspace can resolve the path
+    /// somewhere other than this probe's root, and an existing file there that
+    /// this probe saw as new is refused rather than overwritten unapproved.
     fn external_effect_with_args(&self, args: &serde_json::Value) -> bool {
         if !self.gate.write_needs_approval() {
             return false; // Full (allow) or read-only (blocked in execute)
@@ -172,6 +174,20 @@ impl FileWriteTool {
             Ok(p) => p,
             Err(msg) => return Ok(ToolResult::error(msg)),
         };
+
+        // Re-probe: the approval probe resolved `path` against the approval
+        // root, but a context workspace can move the write elsewhere. A path it
+        // saw as new (no approval asked) that exists here would be an
+        // unapproved overwrite.
+        if self.gate.write_needs_approval()
+            && !self.external_effect_with_args(&args)
+            && tokio::fs::symlink_metadata(&resolved_target).await.is_ok()
+        {
+            return Ok(ToolResult::error(format!(
+                "{path} already exists in this workspace; overwriting it needs approval. \
+                 Use the edit tool to change it"
+            )));
+        }
 
         // Create parent directory only at the validated, resolved location.
         if let Some(resolved_parent) = resolved_target.parent() {
