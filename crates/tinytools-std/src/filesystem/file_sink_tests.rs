@@ -42,3 +42,21 @@ async fn a_write_keeps_the_targets_permissions() {
     let leftovers = std::fs::read_dir(dir.path()).unwrap().count();
     assert_eq!(leftovers, 1, "a temp file was left behind");
 }
+
+#[tokio::test]
+async fn failed_writes_report_why_and_leave_no_temp_file() {
+    let no_parent = atomic_write(Path::new("/"), b"x").await.unwrap_err();
+    assert_eq!(no_parent.kind(), std::io::ErrorKind::InvalidInput);
+
+    let dir = tempfile::tempdir().unwrap();
+    let missing_dir = atomic_write(&dir.path().join("nope").join("a.txt"), b"x")
+        .await
+        .unwrap_err();
+    assert!(missing_dir.to_string().contains("stage temp file"));
+
+    // Renaming a file over a directory fails after the temp file was staged.
+    let target = dir.path().join("a.txt");
+    std::fs::create_dir(&target).unwrap();
+    assert!(atomic_write(&target, b"x").await.is_err());
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+}
