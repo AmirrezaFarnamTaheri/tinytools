@@ -361,11 +361,13 @@ impl WebFetchTool {
         // redirects by default, and a redirect target may be on a host
         // outside the allowed-domains list. We surface 3xx responses to
         // the caller so they can decide whether to refetch the new URL.
-        let client = match reqwest::Client::builder()
+        let builder = reqwest::Client::builder()
             .timeout(Duration::from_secs(self.timeout_secs))
             .user_agent(USER_AGENT)
-            .redirect(reqwest::redirect::Policy::none())
-            // Connect only to the vetted addresses; the URL keeps its host name.
+            .redirect(reqwest::redirect::Policy::none());
+        let builder = self.gate.prepare_client("tool.web_fetch", builder);
+        // Connect only to the vetted addresses; the URL keeps its host name.
+        let client = match builder
             .resolve_to_addrs(&target.host, &target.addrs)
             .build()
         {
@@ -672,3 +674,7 @@ pub use tinytools::status::web_fetch_status as status_of;
 #[cfg(test)]
 #[path = "web_fetch_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "web_fetch_proxy_tests.rs"]
+mod proxy_tests;
