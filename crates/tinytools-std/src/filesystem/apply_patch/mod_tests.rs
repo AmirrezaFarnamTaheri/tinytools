@@ -675,3 +675,27 @@ async fn two_spellings_of_one_path_apply_both_edits() {
         result.output()
     );
 }
+
+// The edits to one file, together, must not grow it past the cap the input is
+// held to: each edit stays under it, the second one crosses it.
+#[tokio::test]
+async fn apply_patch_refuses_edits_that_outgrow_the_cap() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("a.txt"), "a".repeat(1024 * 1024)).unwrap();
+    let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool
+        .execute(json!({
+            "edits": [
+                { "path": "a.txt", "old_string": "a", "new_string": "bbb", "replace_all": true },
+                { "path": "a.txt", "old_string": "b", "new_string": "cc", "replace_all": true }
+            ]
+        }))
+        .await
+        .unwrap();
+    let len = std::fs::metadata(dir.path().join("a.txt")).unwrap().len();
+    assert!(
+        result.is_error && len == 1024 * 1024,
+        "wrote {len} bytes (cap {MAX_FILE_BYTES}): {}",
+        &result.output()[..result.output().len().min(200)]
+    );
+}

@@ -363,6 +363,17 @@ impl ApplyPatchTool {
                     edit.index, edit.path
                 )));
             }
+            // Refuse before building the result: the edits to one buffer
+            // must not grow it past the cap the input is held to.
+            let replaced = if edit.replace_all { count } else { 1 };
+            let new_len = (buf.contents.len() - replaced * edit.old_string.len())
+                .checked_add(replaced.saturating_mul(edit.new_string.len()));
+            if new_len.is_none_or(|len| len as u64 > MAX_FILE_BYTES) {
+                return Ok(ToolResult::error(format!(
+                    "edit[{}]: edits would grow {} past the {MAX_FILE_BYTES}-byte limit",
+                    edit.index, edit.path
+                )));
+            }
             buf.contents = if edit.replace_all {
                 buf.contents.replace(&edit.old_string, &edit.new_string)
             } else {
