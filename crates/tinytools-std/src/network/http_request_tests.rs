@@ -718,7 +718,8 @@ async fn an_endless_body_is_read_only_up_to_the_cap() {
         let _ = socket
             .write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n")
             .await;
-        while socket.write_all(&[b'x'; 65536]).await.is_ok() {}
+        let chunk = vec![b'x'; 65536];
+        while socket.write_all(&chunk).await.is_ok() {}
     });
     let tool = HttpRequestTool::new(TestNetGate::supervised(), vec![], 1000, 30, DEFAULT_LIMITS);
     let target = pinned_to_local(&format!("http://{addr}/big"));
@@ -729,8 +730,9 @@ async fn an_endless_body_is_read_only_up_to_the_cap() {
             .unwrap();
         tool.format_response(response).await.unwrap().output()
     })
-    .await
-    .expect("the body read did not stop at the cap");
+    .await;
+    assert!(output.is_ok(), "the body read did not stop at the cap");
+    let output = output.unwrap();
     assert!(output.contains("[Response truncated due to size limit]"));
     assert!(!output.contains(&"x".repeat(1001)));
 }
