@@ -289,8 +289,11 @@ async fn edit_honours_the_file_state_guard_and_records_its_write() {
         true,
         std::time::Instant::now(),
     );
+    // A partial read does not block an edit: the anchored match proves the
+    // agent saw the text it replaces.
     let result = run(agent.clone()).await.unwrap();
-    assert!(result.output().contains("Partial read"));
+    assert!(!result.is_error, "{}", result.output());
+    std::fs::write(&target, "aaa").unwrap();
 
     crate::file_state::record_read(
         &agent,

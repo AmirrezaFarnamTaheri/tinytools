@@ -245,7 +245,9 @@ impl ApplyPatchTool {
             }
         }
 
-        // File-state guard: reject edits based on stale or partial reads.
+        // File-state guard: reject edits based on stale reads. A partial read is
+        // not refused here: an anchored `old_string` match proves the agent saw
+        // the text it replaces. Only file_write enforces the partial-read guard.
         if let Some(agent_id) = file_state::current_file_state_agent_id() {
             for p in &unique_paths {
                 let full = path_policy.action_dir().join(p);
@@ -255,14 +257,6 @@ impl ApplyPatchTool {
                             agent = %agent_id,
                             path = %resolved.display(),
                             "[file_state] apply_patch blocked: stale read"
-                        );
-                        return Ok(ToolResult::error(msg));
-                    }
-                    if let Some(msg) = file_state::check_partial_read(&agent_id, &resolved) {
-                        tracing::debug!(
-                            agent = %agent_id,
-                            path = %resolved.display(),
-                            "[file_state] apply_patch blocked: partial read"
                         );
                         return Ok(ToolResult::error(msg));
                     }
