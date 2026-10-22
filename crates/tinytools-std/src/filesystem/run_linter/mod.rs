@@ -121,6 +121,11 @@ impl Tool for RunLinterTool {
                              (no absolute paths or '..')",
                     ));
                 }
+                // A value starting with `-` would reach eslint as an option
+                // (`--output-file=<f>` writes a file). No path needs one.
+                if path.starts_with('-') {
+                    return Ok(ToolResult::error("path must be a path, not an option"));
+                }
                 let mut cmd = tokio::process::Command::new("npx");
                 cmd.args(["eslint", "--format", "compact", path])
                     .current_dir(&workspace_dir);
