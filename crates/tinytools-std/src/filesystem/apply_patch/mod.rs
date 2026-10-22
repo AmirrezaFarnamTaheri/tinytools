@@ -251,15 +251,15 @@ impl ApplyPatchTool {
         if let Some(agent_id) = file_state::current_file_state_agent_id() {
             for p in &unique_paths {
                 let full = path_policy.action_dir().join(p);
-                if let Ok(resolved) = tokio::fs::canonicalize(&full).await {
-                    if let Some(msg) = file_state::check_stale_read(&agent_id, &resolved) {
-                        tracing::debug!(
-                            agent = %agent_id,
-                            path = %resolved.display(),
-                            "[file_state] apply_patch blocked: stale read"
-                        );
-                        return Ok(ToolResult::error(msg));
-                    }
+                if let Ok(resolved) = tokio::fs::canonicalize(&full).await
+                    && let Some(msg) = file_state::check_stale_read(&agent_id, &resolved)
+                {
+                    tracing::debug!(
+                        agent = %agent_id,
+                        path = %resolved.display(),
+                        "[file_state] apply_patch blocked: stale read"
+                    );
+                    return Ok(ToolResult::error(msg));
                 }
             }
         }

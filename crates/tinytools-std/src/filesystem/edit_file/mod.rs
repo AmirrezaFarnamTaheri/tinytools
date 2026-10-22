@@ -182,15 +182,15 @@ impl EditFileTool {
         // File-state guard: reject edits based on stale reads. A partial read is
         // not refused here: an anchored `old_string` match proves the agent saw
         // the text it replaces. Only file_write enforces the partial-read guard.
-        if let Some(agent_id) = file_state::current_file_state_agent_id() {
-            if let Some(msg) = file_state::check_stale_read(&agent_id, &resolved) {
-                tracing::debug!(
-                    agent = %agent_id,
-                    path = %resolved.display(),
-                    "[file_state] edit blocked: stale read"
-                );
-                return Ok(ToolResult::error(msg));
-            }
+        if let Some(agent_id) = file_state::current_file_state_agent_id()
+            && let Some(msg) = file_state::check_stale_read(&agent_id, &resolved)
+        {
+            tracing::debug!(
+                agent = %agent_id,
+                path = %resolved.display(),
+                "[file_state] edit blocked: stale read"
+            );
+            return Ok(ToolResult::error(msg));
         }
 
         let contents = match tokio::fs::read_to_string(&resolved).await {
