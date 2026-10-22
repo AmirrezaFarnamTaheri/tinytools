@@ -334,9 +334,39 @@ async fn execute_on_a_directory_reports_a_read_failure() {
     let dir = std::env::temp_dir().join("tinytools_image_info_dir_test");
     tokio::fs::create_dir_all(&dir).await.unwrap();
     let tool = ImageInfoTool::new(test_security());
-    let err = tool
+    let result = tool
         .execute(json!({"path": dir.to_string_lossy()}))
         .await
-        .unwrap_err();
-    assert!(err.to_string().contains("Failed to read image file"));
+        .unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("Failed to read image file"));
+}
+
+// Every SOF marker (C0-CF except DHT C4, JPG C8 and DAC CC) carries the
+// frame size; the other three are segments to skip.
+#[test]
+fn jpeg_dimensions_come_from_every_sof_marker_and_skip_c4_c8_cc() {
+    let sof = |marker: u8| {
+        vec![
+            0xFF, 0xD8, 0xFF, marker, 0x00, 0x11, 0x08, 0x01, 0xE0, 0x02, 0x80,
+        ]
+    };
+    for marker in [
+        0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF,
+    ] {
+        assert_eq!(
+            ImageInfoTool::extract_dimensions(&sof(marker), "jpeg"),
+            Some((640, 480)),
+            "SOF {marker:#X}"
+        );
+    }
+    for marker in [0xC4, 0xC8, 0xCC] {
+        let mut bytes = vec![0xFF, 0xD8, 0xFF, marker, 0x00, 0x04, 0x01, 0xE0];
+        bytes.extend_from_slice(&sof(0xC0)[2..]);
+        assert_eq!(
+            ImageInfoTool::extract_dimensions(&bytes, "jpeg"),
+            Some((640, 480)),
+            "{marker:#X} must be skipped"
+        );
+    }
 }

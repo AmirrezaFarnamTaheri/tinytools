@@ -50,3 +50,18 @@ async fn listing_stops_at_the_entry_cap() {
             .starts_with(&format!("{MAX_ENTRIES} entr(ies) in ."))
     );
 }
+
+#[tokio::test]
+async fn a_capped_listing_says_it_was_truncated() {
+    let dir = TempDir::new().unwrap();
+    for i in 0..(MAX_ENTRIES + 1) {
+        std::fs::write(dir.path().join(format!("f{i:05}")), "").unwrap();
+    }
+    let tool = ListFilesTool::new(TestGate::supervised(dir.path().to_path_buf()));
+    let r = tool.execute(json!({})).await.unwrap();
+    assert!(r.output().ends_with("[truncated]"), "{}", &r.output()[..80]);
+
+    std::fs::remove_file(dir.path().join("f00000")).unwrap();
+    let r = tool.execute(json!({})).await.unwrap();
+    assert!(!r.output().contains("[truncated]"));
+}
