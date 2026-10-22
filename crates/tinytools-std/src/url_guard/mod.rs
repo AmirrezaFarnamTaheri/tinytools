@@ -120,7 +120,10 @@ pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result
 pub struct ValidatedUrl {
     /// The validated URL, trimmed, otherwise exactly as supplied.
     pub url: String,
-    /// The lowercase host the URL names (a hostname or an IP literal).
+    /// The host exactly as the HTTP client will look it up — the key to pin
+    /// [`addrs`](Self::addrs) under. It differs from the validated host for a
+    /// trailing-dot name (`example.com.`), which the client resolves as
+    /// written; pinning the dot-less name would miss and let it re-resolve.
     pub host: String,
     /// Every address `host` resolved to, each paired with the URL's port;
     /// all are public. For an IP-literal host this is that single address.
@@ -181,8 +184,8 @@ where
     // has already checked it above. We only need DNS resolution for hostnames.
     if let Ok(ip) = host.parse::<IpAddr>() {
         return Ok(ValidatedUrl {
+            host: connect_host(&url)?,
             url,
-            host,
             addrs: vec![SocketAddr::new(ip, port)],
         });
     }
@@ -207,13 +210,23 @@ where
     }
 
     Ok(ValidatedUrl {
+        host: connect_host(&url)?,
         url,
-        host,
         addrs: addrs
             .into_iter()
             .map(|ip| SocketAddr::new(ip, port))
             .collect(),
     })
+}
+
+/// The host `url` names as the HTTP client sees it: lowercased, punycoded,
+/// and with any trailing dot kept. This is the name the client resolves, so
+/// it is the name a pinned address must be registered under.
+pub(crate) fn connect_host(url: &str) -> anyhow::Result<String> {
+    reqwest::Url::parse(url)?
+        .host_str()
+        .map(str::to_string)
+        .ok_or_else(|| anyhow::anyhow!("URL must include a host"))
 }
 
 async fn resolve_host_ips(host: String, port: u16) -> anyhow::Result<Vec<IpAddr>> {
