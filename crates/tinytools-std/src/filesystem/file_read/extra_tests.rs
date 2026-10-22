@@ -94,3 +94,28 @@ async fn an_oversized_path_drops_out_of_the_continuation_marker() {
     assert!(!out.contains("ppppp"));
     assert!(out.len() <= 16 * 1024);
 }
+
+// A paged read must arm the partial-read guard before a full overwrite.
+#[tokio::test]
+async fn a_paged_read_is_recorded_as_partial() {
+    crate::file_state::init_global(true);
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().canonicalize().unwrap().join("big.txt");
+    std::fs::write(&target, "x".repeat(40 * 1024)).unwrap();
+    let tool = FileReadTool::new(TestGate::supervised(dir.path().to_path_buf()));
+    let agent = format!("partial-{}", dir.path().display());
+    let r = crate::file_state::with_file_state_agent_id(
+        agent.clone(),
+        tool.execute(json!({"path": "big.txt"})),
+    )
+    .await
+    .unwrap();
+    assert!(
+        r.output().contains("[file_read page:"),
+        "not paged: test premise"
+    );
+    assert!(
+        crate::file_state::check_partial_read(&agent, &target).is_some(),
+        "a paged read was recorded as a full read"
+    );
+}
