@@ -415,10 +415,7 @@ async fn checkout_of_a_path_or_flag_keeps_uncommitted_work() {
             .await;
         let content = std::fs::read_to_string(tmp.path().join("a.txt")).unwrap();
         if content != "uncommitted\n" {
-            lost.push(format!(
-                "{branch:?} -> {:?}",
-                result.map(|r| r.output().to_string())
-            ));
+            lost.push(format!("{branch:?} -> {:?}", result.map(|r| r.output())));
         }
     }
     assert!(
