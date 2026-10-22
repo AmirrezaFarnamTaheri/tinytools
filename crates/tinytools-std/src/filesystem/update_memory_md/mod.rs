@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use serde_json::json;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use tinytools::ToolRunContext;
 use tinytools::{PermissionLevel, Tool, ToolCallOptions, ToolResult};
@@ -24,9 +23,6 @@ const ALLOWED_FILES: &[&str] = &["MEMORY.md", "SKILL.md"];
 /// a killed process can never leave a truncated file.
 static WORKSPACE_WRITE_LOCKS: LazyLock<Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
-
-/// Monotonic counter for temp-file uniqueness within a process.
-static TEMP_FILE_SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// Return (creating if needed) the shared async write lock for `workspace_dir`.
 ///
@@ -93,46 +89,13 @@ async fn acquire_cross_process_write_lock(workspace_dir: &Path) -> anyhow::Resul
     .map_err(|e| anyhow::anyhow!("workspace lock task join failed: {e}"))?
 }
 
-/// Atomically replace `path`'s contents with `content`.
-///
-/// Writes to a sibling temp file in the same directory (so the rename stays on
-/// one filesystem and is atomic) and `rename`s it over the target. A crash
-/// mid-write leaves either the old file or the complete new file — never a
-/// half-written truncation. Callers MUST hold the per-workspace write lock so
-/// the read-modify-write is serialized end-to-end.
+/// [`super::file_sink::atomic_write`], with the error naming `file`.
+/// Callers MUST hold the per-workspace write lock so the read-modify-write is
+/// serialized end-to-end.
 async fn atomic_write(path: &Path, file: &str, content: &str) -> anyhow::Result<()> {
-    let dir = path
-        .parent()
-        .ok_or_else(|| anyhow::anyhow!("target path has no parent directory"))?;
-    let seq = TEMP_FILE_SEQ.fetch_add(1, Ordering::Relaxed);
-    let tmp_name = format!(".{file}.{}.{seq}.tmp", std::process::id());
-    let tmp_path = dir.join(tmp_name);
-
-    tracing::debug!(
-        tmp = %tmp_path.display(),
-        target = %path.display(),
-        bytes = content.len(),
-        "[update_memory_md] atomic write: staging temp file"
-    );
-
-    if let Err(e) = tokio::fs::write(&tmp_path, content).await {
-        // Clean up a partially-written temp file so a failed stage doesn't
-        // litter the workspace (CodeRabbit: temp not cleaned on initial write).
-        let _ = tokio::fs::remove_file(&tmp_path).await;
-        return Err(anyhow::anyhow!("Failed to stage temp file for {file}: {e}"));
-    }
-
-    if let Err(e) = tokio::fs::rename(&tmp_path, path).await {
-        // Best-effort cleanup so a failed rename doesn't litter the workspace.
-        let _ = tokio::fs::remove_file(&tmp_path).await;
-        return Err(anyhow::anyhow!("Failed to atomically write {file}: {e}"));
-    }
-
-    tracing::debug!(
-        target = %path.display(),
-        "[update_memory_md] atomic write: rename committed"
-    );
-    Ok(())
+    super::file_sink::atomic_write(path, content.as_bytes())
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to atomically write {file}: {e}"))
 }
 
 /// Appends or replaces a named section in MEMORY.md or SKILL.md.

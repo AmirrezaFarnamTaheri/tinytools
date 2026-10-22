@@ -194,6 +194,10 @@ impl FileWriteTool {
             ));
         }
 
+        // Per-path lock, as edit_file and apply_patch take: the stale check and
+        // the write must not interleave with another tool's edit of the file.
+        let _path_guard = file_state::acquire_path_lock(&resolved_target).await;
+
         // File-state guard: reject writes based on stale or partial reads.
         if let Some(agent_id) = file_state::current_file_state_agent_id() {
             if let Some(msg) = file_state::check_stale_read(&agent_id, &resolved_target) {

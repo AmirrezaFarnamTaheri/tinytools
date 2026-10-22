@@ -265,7 +265,7 @@ async fn atomic_write_reports_staging_and_rename_failures() {
     let err = atomic_write(&missing_dir_target, "MEMORY.md", "x")
         .await
         .unwrap_err();
-    assert!(err.to_string().contains("Failed to stage temp file"));
+    assert!(err.to_string().contains("stage temp file"), "{err}");
 
     // Renaming a file over a directory fails after the temp file was staged.
     let dir_target = dir.path().join("MEMORY.md");
