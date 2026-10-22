@@ -328,10 +328,12 @@ impl HttpRequestTool {
 
     fn truncate_response(&self, text: &str) -> String {
         if text.len() > self.max_response_size {
-            let mut truncated = text
-                .chars()
-                .take(self.max_response_size)
-                .collect::<String>();
+            // The cap is in bytes: cut at the last char boundary at or below it.
+            let mut end = self.max_response_size;
+            while !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            let mut truncated = text[..end].to_string();
             truncated.push_str("\n\n... [Response truncated due to size limit] ...");
             truncated
         } else {
