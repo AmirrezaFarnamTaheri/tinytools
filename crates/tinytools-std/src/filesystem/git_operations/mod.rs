@@ -408,9 +408,16 @@ impl GitOperationsTool {
         if branch_name.contains('@') || branch_name.contains('^') || branch_name.contains('~') {
             anyhow::bail!("Branch name contains invalid characters");
         }
+        // An option such as `-f` would discard uncommitted work.
+        if branch_name.starts_with('-') {
+            anyhow::bail!("Branch name must not start with '-'");
+        }
 
+        // The trailing `--` makes git read the argument as a branch or commit
+        // only, never as a pathspec: `git checkout .` or `git checkout a.txt`
+        // would overwrite uncommitted changes.
         let output = self
-            .run_git_command_in(cwd, &["checkout", branch_name])
+            .run_git_command_in(cwd, &["checkout", branch_name, "--"])
             .await;
 
         match output {

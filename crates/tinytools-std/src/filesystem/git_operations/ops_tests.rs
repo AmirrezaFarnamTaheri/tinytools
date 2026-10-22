@@ -226,8 +226,42 @@ async fn checkout_switches_and_reports_failures() {
 
     let invalid = tool
         .execute(json!({"operation": "checkout", "branch": "--evil"}))
-        .await;
-    assert!(invalid.is_err() || invalid.unwrap().is_error);
+        .await
+        .unwrap_err();
+    assert!(
+        invalid.to_string().contains("must not start with '-'"),
+        "{invalid}"
+    );
+}
+
+#[tokio::test]
+async fn checkout_of_a_remote_only_branch_still_creates_its_tracking_branch() {
+    let tmp = repo_with_commit();
+    git(
+        tmp.path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            "https://example.invalid/repo.git",
+        ],
+    );
+    git(
+        tmp.path(),
+        &["update-ref", "refs/remotes/origin/feature", "HEAD"],
+    );
+    let tool = test_tool(tmp.path());
+
+    let ok = run(&tool, json!({"operation": "checkout", "branch": "feature"})).await;
+    assert!(!ok.is_error, "{}", ok.output());
+    let head = hermetic(
+        std::process::Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(tmp.path()),
+    )
+    .output()
+    .unwrap();
+    assert_eq!(String::from_utf8_lossy(&head.stdout).trim(), "feature");
 }
 
 #[tokio::test]
@@ -365,4 +399,30 @@ async fn the_execute_wrappers_agree_and_honour_a_workspace_descriptor() {
         .await
         .unwrap();
     assert!(!with_context.is_error, "{}", with_context.output());
+}
+
+/// `checkout` switches branches; it must never treat its argument as a
+/// pathspec (`.`, `a.txt`) or an option (`-f`) and discard uncommitted work.
+#[tokio::test]
+async fn checkout_of_a_path_or_flag_keeps_uncommitted_work() {
+    let mut lost = Vec::new();
+    for branch in [".", "a.txt", "-f"] {
+        let tmp = repo_with_commit();
+        std::fs::write(tmp.path().join("a.txt"), "uncommitted\n").unwrap();
+        let tool = test_tool(tmp.path());
+        let result = tool
+            .execute(json!({"operation": "checkout", "branch": branch}))
+            .await;
+        let content = std::fs::read_to_string(tmp.path().join("a.txt")).unwrap();
+        if content != "uncommitted\n" {
+            lost.push(format!(
+                "{branch:?} -> {:?}",
+                result.map(|r| r.output().to_string())
+            ));
+        }
+    }
+    assert!(
+        lost.is_empty(),
+        "checkout discarded uncommitted work: {lost:?}"
+    );
 }
