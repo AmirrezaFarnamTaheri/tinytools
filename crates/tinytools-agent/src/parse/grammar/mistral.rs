@@ -78,10 +78,14 @@ impl Grammar for Mistral {
                 ambiguous_tail = true;
                 break;
             };
-            let arguments = if value.is_object() {
-                value
+            // Non-object arguments that cannot be recovered end the block
+            // here; with no call read yet it is reported `Malformed` below.
+            let Some(arguments) = (if value.is_object() {
+                Some(value)
             } else {
-                recover_object(&payload[..consumed]).unwrap_or_else(|| serde_json::json!({}))
+                recover_object(&payload[..consumed])
+            }) else {
+                break;
             };
             calls.push(ParsedToolCall::new(name, arguments, CallSource::Mistral));
             cursor += args_rel + ARGS.len() + consumed;
