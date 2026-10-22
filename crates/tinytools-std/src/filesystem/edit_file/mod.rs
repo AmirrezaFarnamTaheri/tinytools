@@ -211,6 +211,17 @@ impl EditFileTool {
             )));
         }
 
+        // Refuse before building the result: replace_all can multiply a file
+        // past the cap the input is held to.
+        let replaced = if replace_all { count } else { 1 };
+        let new_len = (contents.len() - replaced * old_string.len())
+            .checked_add(replaced.saturating_mul(new_string.len()));
+        if new_len.is_none_or(|len| len as u64 > MAX_FILE_BYTES) {
+            return Ok(ToolResult::error(format!(
+                "Edit would grow {path} past the {MAX_FILE_BYTES}-byte limit"
+            )));
+        }
+
         let updated = if replace_all {
             contents.replace(old_string, new_string)
         } else {
