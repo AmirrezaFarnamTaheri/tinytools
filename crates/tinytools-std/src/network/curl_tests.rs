@@ -322,3 +322,19 @@ async fn a_download_discloses_its_destination_and_headers_before_the_request() {
     assert!(result.is_error);
     assert_eq!(gate.disclosed(), vec![("8.8.8.8".to_string(), false, true)]);
 }
+
+/// A symlinked component under the downloads root would let a download land
+/// outside the workspace, so the destination is refused, both at the link and
+/// beneath it.
+#[cfg(unix)]
+#[test]
+fn resolve_dest_refuses_a_symlinked_component() {
+    let tmp = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    std::fs::create_dir(tmp.path().join("downloads")).unwrap();
+    std::os::unix::fs::symlink(outside.path(), tmp.path().join("downloads/out")).unwrap();
+    let t = tool(&tmp, vec![]);
+    assert!(t.resolve_dest("out").is_err());
+    assert!(t.resolve_dest("out/f").is_err());
+    assert!(t.resolve_dest("ok/f").is_ok());
+}
