@@ -689,3 +689,18 @@ async fn a_trailing_dot_host_still_connects_only_to_the_pinned_address() {
         "client re-resolved instead of using the pin: {r:?}"
     );
 }
+
+// The response cap is in bytes, so multibyte text must not exceed it.
+#[test]
+fn truncate_response_caps_bytes_not_chars() {
+    let tool = HttpRequestTool::new(
+        TestNetGate::supervised(),
+        vec!["example.com".into()],
+        10,
+        30,
+        DEFAULT_LIMITS,
+    );
+    let out = tool.truncate_response(&"€".repeat(10));
+    let marker = "\n\n... [Response truncated due to size limit] ...";
+    assert!(out.len() <= 10 + marker.len(), "{} bytes", out.len());
+}
