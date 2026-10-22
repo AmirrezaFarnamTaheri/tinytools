@@ -668,3 +668,24 @@ async fn the_request_connects_to_the_pinned_address_and_keeps_the_host_name() {
         "{request}"
     );
 }
+
+// With a trailing-dot host the client must still connect only to the pin.
+#[tokio::test]
+async fn a_trailing_dot_host_still_connects_only_to_the_pinned_address() {
+    let ok = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok";
+    let (addr, _seen) = serve(vec![ok.to_string()]).await;
+    let tool = test_tool(vec![]);
+    let url = format!("http://pinned.invalid.:{}/x", addr.port());
+    let target = crate::url_guard::ValidatedUrl {
+        host: crate::url_guard::connect_host(&url).unwrap(),
+        url,
+        addrs: vec![addr],
+    };
+    let r = tool
+        .execute_request(&target, reqwest::Method::GET, vec![], None)
+        .await;
+    assert!(
+        r.is_ok(),
+        "client re-resolved instead of using the pin: {r:?}"
+    );
+}

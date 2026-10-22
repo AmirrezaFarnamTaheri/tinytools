@@ -157,8 +157,8 @@ pub(super) async fn validate_destination(
     body: Option<&str>,
 ) -> anyhow::Result<crate::url_guard::ValidatedUrl> {
     use crate::url_guard::{
-        ValidatedUrl, extract_host, extract_port, is_private_or_local_host, validate_url,
-        validate_url_with_dns_check,
+        ValidatedUrl, connect_host, extract_host, extract_port, is_private_or_local_host,
+        validate_url, validate_url_with_dns_check,
     };
     let url = validate_url(raw_url, allowed_domains)?;
     let host = extract_host(&url)?;
@@ -187,7 +187,11 @@ pub(super) async fn validate_destination(
                     blocked.ip()
                 );
             }
-            Ok(ValidatedUrl { url, host, addrs })
+            Ok(ValidatedUrl {
+                host: connect_host(&url)?,
+                url,
+                addrs,
+            })
         }
     }
 }
