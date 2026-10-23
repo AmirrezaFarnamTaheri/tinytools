@@ -167,13 +167,17 @@ impl EditFileTool {
             Err(msg) => return Ok(ToolResult::error(msg)),
         };
 
-        if let Ok(meta) = tokio::fs::metadata(&resolved).await
-            && meta.len() > MAX_FILE_BYTES
-        {
-            return Ok(ToolResult::error(format!(
-                "File too large: {} bytes (limit: {MAX_FILE_BYTES} bytes)",
-                meta.len()
-            )));
+        if let Ok(meta) = tokio::fs::metadata(&resolved).await {
+            // A FIFO or device would block the read (or never end).
+            if !meta.is_file() {
+                return Ok(ToolResult::error(format!("{path} is not a regular file")));
+            }
+            if meta.len() > MAX_FILE_BYTES {
+                return Ok(ToolResult::error(format!(
+                    "File too large: {} bytes (limit: {MAX_FILE_BYTES} bytes)",
+                    meta.len()
+                )));
+            }
         }
 
         // Acquire per-path lock for the read-modify-write section.

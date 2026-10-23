@@ -123,6 +123,10 @@ impl FileReadTool {
         // Check file size AFTER canonicalization to prevent TOCTOU symlink bypass
         match tokio::fs::metadata(&resolved_path).await {
             Ok(meta) => {
+                // A FIFO or device would block the read (or never end).
+                if !meta.is_file() {
+                    return Ok(ToolResult::error(format!("{path} is not a regular file")));
+                }
                 if meta.len() > MAX_FILE_SIZE_BYTES {
                     return Ok(ToolResult::error(format!(
                         "File too large: {} bytes (limit: {MAX_FILE_SIZE_BYTES} bytes)",

@@ -7,6 +7,7 @@
 use super::gate::{FsGate, gate_for_context};
 use async_trait::async_trait;
 use serde_json::json;
+use std::fmt::Write;
 use std::sync::Arc;
 use tinytools::ToolRunContext;
 use tinytools::{PermissionLevel, Tool, ToolCallOptions, ToolResult};
@@ -101,6 +102,7 @@ impl ListFilesTool {
         };
 
         let mut entries: Vec<(String, String)> = Vec::new();
+        let mut truncated = false;
         loop {
             match read.next_entry().await {
                 Ok(Some(entry)) => {
@@ -113,6 +115,7 @@ impl ListFilesTool {
                     };
                     entries.push((kind.to_string(), name));
                     if entries.len() >= MAX_ENTRIES {
+                        truncated = matches!(read.next_entry().await, Ok(Some(_)));
                         break;
                     }
                 }
@@ -133,6 +136,12 @@ impl ListFilesTool {
             body.push_str(&kind);
             body.push('\t');
             body.push_str(&name);
+        }
+        if truncated {
+            let _ = write!(
+                body,
+                "\n... listing stopped at {MAX_ENTRIES} entries [truncated]"
+            );
         }
         Ok(ToolResult::success(body))
     }

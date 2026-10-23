@@ -340,3 +340,28 @@ async fn edit_refuses_a_replacement_that_outgrows_the_cap() {
         &result.output()[..result.output().len().min(200)]
     );
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn edit_refuses_a_fifo() {
+    let dir = tempfile::tempdir().unwrap();
+    let fifo = dir.path().join("pipe");
+    assert!(
+        std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let tool = EditFileTool::new(test_security(dir.path().to_path_buf()));
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tool.execute(json!({"path": "pipe", "old_string": "a", "new_string": "b"})),
+    )
+    .await;
+    // Give a stuck reader EOF so a failing run can still shut down.
+    std::thread::spawn(move || drop(std::fs::OpenOptions::new().write(true).open(fifo)));
+    let result = result.expect("edit blocked on a FIFO").unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("not a regular file"));
+}

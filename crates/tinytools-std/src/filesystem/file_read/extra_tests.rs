@@ -119,3 +119,28 @@ async fn a_paged_read_is_recorded_as_partial() {
         "a paged read was recorded as a full read"
     );
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_fifo_is_refused_not_read() {
+    let dir = TempDir::new().unwrap();
+    let fifo = dir.path().join("pipe");
+    assert!(
+        std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let tool = FileReadTool::new(TestGate::supervised(dir.path().to_path_buf()));
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tool.execute(json!({"path": "pipe"})),
+    )
+    .await;
+    // Give a stuck reader EOF so a failing run can still shut down.
+    std::thread::spawn(move || drop(std::fs::OpenOptions::new().write(true).open(fifo)));
+    let result = result.expect("file_read blocked on a FIFO").unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("not a regular file"));
+}
