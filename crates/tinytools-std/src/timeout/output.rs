@@ -206,6 +206,20 @@ pub fn own_process_group(cmd: &mut std::process::Command) {
     }
 }
 
+/// Spawn `cmd` without a console window on Windows (`CREATE_NO_WINDOW`), so a
+/// GUI host's child does not flash a visible console. A no-op off Windows.
+pub fn hide_console_window(cmd: &mut std::process::Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = cmd;
+    }
+}
+
 /// Send SIGKILL to the process group led by `pid` -- a child spawned via
 /// [`own_process_group`] and everything it started. Off Unix the direct child
 /// is what `kill_on_drop` reaches and no group exists to signal.

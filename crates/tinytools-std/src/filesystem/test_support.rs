@@ -267,6 +267,7 @@ pub struct WrapGate {
     action_dir: Option<PathBuf>,
     batch_calls: Arc<AtomicUsize>,
     wrong_length_batch: bool,
+    deny_suffix: Option<&'static str>,
 }
 
 impl WrapGate {
@@ -279,7 +280,19 @@ impl WrapGate {
             action_dir: None,
             batch_calls: Arc::new(AtomicUsize::new(0)),
             wrong_length_batch: false,
+            deny_suffix: None,
         }
+    }
+
+    /// Refuse any path ending in `suffix`, as a host policy denies `.env`.
+    #[must_use]
+    pub fn deny_suffix(mut self, suffix: &'static str) -> Self {
+        self.deny_suffix = Some(suffix);
+        self
+    }
+
+    fn denied(&self, path: &str) -> bool {
+        self.deny_suffix.is_some_and(|s| path.ends_with(s))
     }
 
     /// Answer every batch with one verdict too few.
@@ -350,14 +363,14 @@ impl FsGate for WrapGate {
     }
 
     fn is_path_string_allowed(&self, path: &str) -> bool {
-        self.inner.is_path_string_allowed(path)
+        !self.denied(path) && self.inner.is_path_string_allowed(path)
     }
 
     fn paths_string_allowed(&self, paths: &[String]) -> Vec<bool> {
         self.batch_calls.fetch_add(1, Ordering::SeqCst);
         let mut answers: Vec<bool> = paths
             .iter()
-            .map(|path| self.inner.is_path_string_allowed(path))
+            .map(|path| !self.denied(path) && self.inner.is_path_string_allowed(path))
             .collect();
         if self.wrong_length_batch {
             answers.pop();

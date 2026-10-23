@@ -87,6 +87,26 @@ impl CurlTool {
             anyhow::bail!("dest_path resolves outside the downloads root");
         }
 
+        // Writes follow symlinks, so refuse any symlinked component below the
+        // workspace (dest_subdir, then dest). The walk stops at the first
+        // component that does not exist yet: create_dir_all makes real dirs.
+        // ponytail: check-then-create/rename window; closing it fully needs
+        // openat/O_NOFOLLOW per component.
+        let mut cur = self.workspace_dir.clone();
+        for component in Path::new(&self.dest_subdir)
+            .components()
+            .chain(p.components())
+        {
+            cur.push(component);
+            match std::fs::symlink_metadata(&cur) {
+                Ok(meta) if meta.file_type().is_symlink() => {
+                    anyhow::bail!("dest_path may not pass through a symlink");
+                }
+                Ok(_) => {}
+                Err(_) => break,
+            }
+        }
+
         Ok(resolved)
     }
 
@@ -315,10 +335,27 @@ impl Tool for CurlTool {
             .unwrap_or("application/octet-stream")
             .to_string();
 
-        let mut file = match fs::File::create(&dest_path).await {
+        // Stream into a fresh temp file beside the target and rename it over
+        // the target on success: a failed download leaves any existing file
+        // intact, and rename replaces a final symlink instead of following it.
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let file_name = dest_path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let tmp_path =
+            dest_path.with_file_name(format!(".{file_name}.{}.{nonce}.part", std::process::id()));
+        let mut file = match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp_path)
+            .await
+        {
             Ok(f) => f,
             Err(e) => {
-                tracing::error!(target: "[curl]", dest = %dest_path.display(), reason = %e, "fs::File::create failed");
+                tracing::error!(target: "[curl]", dest = %dest_path.display(), reason = %e, "temp file create failed");
                 return Ok(ToolResult::error(format!(
                     "Failed to create destination file: {e}"
                 )));
@@ -334,8 +371,8 @@ impl Tool for CurlTool {
                 Ok(c) => c,
                 Err(e) => {
                     drop(file);
-                    if let Err(rm) = fs::remove_file(&dest_path).await {
-                        tracing::debug!(target: "[curl]", dest = %dest_path.display(), reason = %rm, "cleanup remove_file failed");
+                    if let Err(rm) = fs::remove_file(&tmp_path).await {
+                        tracing::debug!(target: "[curl]", tmp = %tmp_path.display(), reason = %rm, "cleanup remove_file failed");
                     }
                     tracing::error!(target: "[curl]", url = %url, bytes_written, reason = %e, "stream error");
                     return Ok(ToolResult::error(format!("Stream error: {e}")));
@@ -345,8 +382,8 @@ impl Tool for CurlTool {
             if bytes_written.saturating_add(chunk.len() as u64) > self.max_download_bytes {
                 let _ = file.flush().await;
                 drop(file);
-                if let Err(rm) = fs::remove_file(&dest_path).await {
-                    tracing::debug!(target: "[curl]", dest = %dest_path.display(), reason = %rm, "cleanup remove_file failed");
+                if let Err(rm) = fs::remove_file(&tmp_path).await {
+                    tracing::debug!(target: "[curl]", tmp = %tmp_path.display(), reason = %rm, "cleanup remove_file failed");
                 }
                 tracing::error!(target: "[curl]", url = %url, bytes_written, max = self.max_download_bytes, "size cap exceeded — download aborted");
                 return Ok(ToolResult::error(format!(
@@ -357,8 +394,8 @@ impl Tool for CurlTool {
 
             if let Err(e) = file.write_all(&chunk).await {
                 drop(file);
-                if let Err(rm) = fs::remove_file(&dest_path).await {
-                    tracing::debug!(target: "[curl]", dest = %dest_path.display(), reason = %rm, "cleanup remove_file failed");
+                if let Err(rm) = fs::remove_file(&tmp_path).await {
+                    tracing::debug!(target: "[curl]", tmp = %tmp_path.display(), reason = %rm, "cleanup remove_file failed");
                 }
                 tracing::error!(target: "[curl]", dest = %dest_path.display(), bytes_written, reason = %e, "write_all failed");
                 return Ok(ToolResult::error(format!("Write failed: {e}")));
@@ -369,11 +406,21 @@ impl Tool for CurlTool {
 
         if let Err(e) = file.flush().await {
             drop(file);
-            if let Err(rm) = fs::remove_file(&dest_path).await {
-                tracing::debug!(target: "[curl]", dest = %dest_path.display(), reason = %rm, "cleanup remove_file failed");
+            if let Err(rm) = fs::remove_file(&tmp_path).await {
+                tracing::debug!(target: "[curl]", tmp = %tmp_path.display(), reason = %rm, "cleanup remove_file failed");
             }
             tracing::error!(target: "[curl]", dest = %dest_path.display(), bytes_written, reason = %e, "flush failed");
             return Ok(ToolResult::error(format!("Flush failed: {e}")));
+        }
+        drop(file);
+        if let Err(e) = fs::rename(&tmp_path, &dest_path).await {
+            if let Err(rm) = fs::remove_file(&tmp_path).await {
+                tracing::debug!(target: "[curl]", tmp = %tmp_path.display(), reason = %rm, "cleanup remove_file failed");
+            }
+            tracing::error!(target: "[curl]", dest = %dest_path.display(), reason = %e, "rename failed");
+            return Ok(ToolResult::error(format!(
+                "Failed to move download into place: {e}"
+            )));
         }
 
         let mut sha256 = String::with_capacity(64);

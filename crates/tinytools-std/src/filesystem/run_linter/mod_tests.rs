@@ -95,3 +95,18 @@ async fn a_workspace_descriptor_overrides_the_configured_directory() {
     assert!(result.is_error);
     assert!(result.output().contains("Could not detect project type"));
 }
+
+// A path starting with `-` would reach eslint as an option
+// (`--output-file=<f>` writes a file). No path needs a leading `-`.
+#[tokio::test]
+async fn eslint_rejects_an_option_shaped_path() {
+    let tmp = TempDir::new().unwrap();
+    std::fs::write(tmp.path().join("package.json"), "{}").unwrap();
+    let result = make_tool(&tmp)
+        .execute(json!({"linter": "eslint", "path": "--output-file=pwned.txt"}))
+        .await
+        .unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("not an option"));
+    assert!(!tmp.path().join("pwned.txt").exists());
+}

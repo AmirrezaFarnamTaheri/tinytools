@@ -123,6 +123,10 @@ impl FileReadTool {
         // Check file size AFTER canonicalization to prevent TOCTOU symlink bypass
         match tokio::fs::metadata(&resolved_path).await {
             Ok(meta) => {
+                // A FIFO or device would block the read (or never end).
+                if !meta.is_file() {
+                    return Ok(ToolResult::error(format!("{path} is not a regular file")));
+                }
                 if meta.len() > MAX_FILE_SIZE_BYTES {
                     return Ok(ToolResult::error(format!(
                         "File too large: {} bytes (limit: {MAX_FILE_SIZE_BYTES} bytes)",
@@ -139,14 +143,6 @@ impl FileReadTool {
 
         match tokio::fs::read_to_string(&resolved_path).await {
             Ok(contents) => {
-                if let Some(agent_id) = file_state::current_file_state_agent_id() {
-                    let mtime = tokio::fs::metadata(&resolved_path)
-                        .await
-                        .ok()
-                        .and_then(|m| m.modified().ok())
-                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-                    file_state::record_read(&agent_id, resolved_path, mtime, false, read_started);
-                }
                 // An absent or null offset reads from the start; anything else
                 // that is not a non-negative integer is rejected, so a
                 // malformed continuation never silently re-reads the file from
@@ -175,6 +171,17 @@ impl FileReadTool {
                     return Ok(ToolResult::error(format!(
                         "offset {offset} falls inside a multi-byte character; continue from the offset a paged read reports"
                     )));
+                }
+                if let Some(agent_id) = file_state::current_file_state_agent_id() {
+                    let mtime = tokio::fs::metadata(&resolved_path)
+                        .await
+                        .ok()
+                        .and_then(|m| m.modified().ok())
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                    // Partial unless this read returns the whole file: the
+                    // negation of `page_contents`' whole-file branch.
+                    let partial = offset > 0 || contents.len() - offset > MAX_PAGE_BYTES;
+                    file_state::record_read(&agent_id, resolved_path, mtime, partial, read_started);
                 }
                 Ok(ToolResult::success(page_contents(&contents, path, offset)))
             }

@@ -577,13 +577,11 @@ async fn apply_patch_honours_the_file_state_guard_and_records_writes() {
         true,
         std::time::Instant::now(),
     );
-    assert!(
-        run(agent.clone())
-            .await
-            .unwrap()
-            .output()
-            .contains("Partial read")
-    );
+    // A partial read does not block a patch: the anchored match proves the
+    // agent saw the text it replaces.
+    let result = run(agent.clone()).await.unwrap();
+    assert!(!result.is_error, "{}", result.output());
+    std::fs::write(&target, "x").unwrap();
 
     crate::file_state::record_read(
         &agent,
@@ -644,5 +642,60 @@ async fn apply_patch_restores_earlier_writes_when_a_later_write_fails() {
     assert!(
         saw_restore,
         "no iteration wrote a file before the failing one"
+    );
+}
+
+// Two spellings of one file in a batch must apply both edits (or refuse),
+// never hang or lose one.
+#[tokio::test]
+async fn two_spellings_of_one_path_apply_both_edits() {
+    let dir = tempfile::TempDir::new().unwrap();
+    tokio::fs::write(dir.path().join("a.txt"), "one two three")
+        .await
+        .unwrap();
+    let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tool.execute(json!({
+            "edits": [
+                { "path": "a.txt", "old_string": "one", "new_string": "ONE" },
+                { "path": "./a.txt", "old_string": "two", "new_string": "TWO" }
+            ]
+        })),
+    )
+    .await
+    .expect("apply_patch hung on two spellings of one path")
+    .unwrap();
+    let updated = tokio::fs::read_to_string(dir.path().join("a.txt"))
+        .await
+        .unwrap();
+    assert!(
+        result.is_error || updated == "ONE TWO three",
+        "reported {:?} but file is {updated:?}",
+        result.output()
+    );
+}
+
+// The edits to one file, together, must not grow it past the cap the input is
+// held to: each edit stays under it, the second one crosses it.
+#[tokio::test]
+async fn apply_patch_refuses_edits_that_outgrow_the_cap() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("a.txt"), "a".repeat(1024 * 1024)).unwrap();
+    let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool
+        .execute(json!({
+            "edits": [
+                { "path": "a.txt", "old_string": "a", "new_string": "bbb", "replace_all": true },
+                { "path": "a.txt", "old_string": "b", "new_string": "cc", "replace_all": true }
+            ]
+        }))
+        .await
+        .unwrap();
+    let len = std::fs::metadata(dir.path().join("a.txt")).unwrap().len();
+    assert!(
+        result.is_error && len == 1024 * 1024,
+        "wrote {len} bytes (cap {MAX_FILE_BYTES}): {}",
+        &result.output()[..result.output().len().min(200)]
     );
 }

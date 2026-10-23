@@ -500,3 +500,28 @@ async fn file_write_uses_the_context_workspace_when_one_is_threaded() {
     assert!(isolated.path().join("in_ws.txt").exists());
     assert!(!home.path().join("in_ws.txt").exists());
 }
+
+// The approval probe ran against the tool's approval root, where the path is
+// new, so no approval was asked. Under a context workspace the same path is an
+// existing file: overwriting it would be an unapproved edit.
+#[tokio::test]
+async fn an_overwrite_the_approval_probe_saw_as_a_create_is_refused() {
+    use crate::filesystem::test_support::WorkspaceContext;
+    let home = tempfile::tempdir().unwrap();
+    let isolated = tempfile::tempdir().unwrap();
+    std::fs::write(isolated.path().join("a.txt"), "keep").unwrap();
+    let tool = FileWriteTool::new(test_security(home.path().to_path_buf()));
+    let args = json!({"path": "a.txt", "content": "clobbered"});
+    assert!(!tool.external_effect_with_args(&args), "probed as a create");
+
+    let context = WorkspaceContext::at(isolated.path());
+    let result = tool
+        .execute_with_context(args, ToolCallOptions::default(), Some(&context))
+        .await
+        .unwrap();
+    assert!(result.is_error, "{}", result.output());
+    assert_eq!(
+        std::fs::read_to_string(isolated.path().join("a.txt")).unwrap(),
+        "keep"
+    );
+}

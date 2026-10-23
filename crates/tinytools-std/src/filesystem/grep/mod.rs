@@ -139,9 +139,19 @@ impl GrepTool {
             Err(msg) => return Ok(ToolResult::error(msg)),
         };
 
-        let workspace = path_policy.action_dir().to_path_buf();
+        // Canonical, like `resolved_root`, so in-sandbox hits render (and are
+        // asked of the gate) relative to the sandbox, as glob does.
+        let workspace = tokio::fs::canonicalize(path_policy.action_dir())
+            .await
+            .unwrap_or_else(|_| path_policy.action_dir().to_path_buf());
         let result = tokio::task::spawn_blocking(move || {
-            scan_for_matches(&resolved_root, &workspace, &regex, max_matches)
+            scan_for_matches(
+                &resolved_root,
+                &workspace,
+                path_policy.as_ref(),
+                &regex,
+                max_matches,
+            )
         })
         .await
         .map_err(|e| anyhow::anyhow!("scan task failed: {e}"))?;
@@ -179,14 +189,12 @@ fn build_regex(pattern: &str, case_insensitive: bool) -> Result<Regex, regex::Er
 fn scan_for_matches(
     root: &Path,
     workspace: &Path,
+    gate: &dyn FsGate,
     regex: &Regex,
     max_matches: usize,
 ) -> (Vec<String>, usize, bool) {
-    let mut matches: Vec<String> = Vec::new();
-    let mut scanned = 0usize;
-    let mut truncated = false;
-
-    'outer: for entry in WalkDir::new(root)
+    let mut files: Vec<(std::path::PathBuf, String)> = Vec::new();
+    for entry in WalkDir::new(root)
         .follow_links(false)
         .into_iter()
         .filter_entry(|e| !is_skipped(e.file_name().to_string_lossy().as_ref()))
@@ -195,16 +203,44 @@ fn scan_for_matches(
         if !entry.file_type().is_file() {
             continue;
         }
-        let path = entry.path();
         let Ok(meta) = entry.metadata() else { continue };
         if meta.len() > MAX_FILE_BYTES {
             continue;
         }
-        let Ok(contents) = std::fs::read_to_string(path) else {
+        let path = entry.into_path();
+        let rel = match path.strip_prefix(workspace) {
+            Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
+            Err(_) => path.to_string_lossy().to_string(),
+        };
+        files.push((path, rel));
+    }
+
+    // Fail-closed: only read files the readers would also accept (a host may
+    // deny `.env` and the like inside the workspace). One batch per search,
+    // as glob does.
+    let rels: Vec<String> = files.iter().map(|(_, rel)| rel.clone()).collect();
+    let verdicts = gate.paths_string_allowed(&rels);
+    if verdicts.len() != files.len() {
+        log::warn!(
+            "[tools:grep] gate answered {} verdict(s) for {} path(s); refusing every file",
+            verdicts.len(),
+            files.len()
+        );
+        files.clear();
+    }
+
+    let mut matches: Vec<String> = Vec::new();
+    let mut scanned = 0usize;
+    let mut truncated = false;
+    'outer: for ((path, rel), allowed) in files.into_iter().zip(verdicts) {
+        if !allowed {
+            log::trace!("[tools:grep] path filtered by policy: '{rel}'");
+            continue;
+        }
+        let Ok(contents) = std::fs::read_to_string(&path) else {
             continue;
         };
         scanned += 1;
-        let rel = path.strip_prefix(workspace).unwrap_or(path);
         for (lineno, line) in contents.lines().enumerate() {
             if regex.is_match(line) {
                 // `MAX_LINE_BYTES` is a BYTE budget — use the byte-aware
@@ -214,7 +250,7 @@ fn scan_for_matches(
                 // the intended cap. Per CodeRabbit critical review on
                 // PR #1549.
                 let display_line = super::text::truncate_at_byte_boundary(line, MAX_LINE_BYTES);
-                matches.push(format!("{}:{}:{}", rel.display(), lineno + 1, display_line));
+                matches.push(format!("{rel}:{}:{display_line}", lineno + 1));
                 if matches.len() >= max_matches {
                     truncated = true;
                     break 'outer;

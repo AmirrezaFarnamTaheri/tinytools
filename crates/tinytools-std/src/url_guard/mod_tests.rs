@@ -768,3 +768,23 @@ async fn dns_check_pins_an_ip_literal_host_to_itself() -> anyhow::Result<()> {
     assert_eq!(got.addrs, vec!["93.184.216.34:80".parse()?]);
     Ok(())
 }
+
+// The pinned host must be the name the HTTP client will resolve.
+#[tokio::test]
+async fn pinned_host_matches_the_url_host_for_a_trailing_dot() -> anyhow::Result<()> {
+    let got = validate_url_with_dns_check_with_resolver(
+        "https://rebind.example./x",
+        &[],
+        |_, _| async move { Ok(vec!["93.184.216.34".parse()?]) },
+    )
+    .await?;
+    let url_host = reqwest::Url::parse(&got.url)?
+        .host_str()
+        .map(str::to_string);
+    assert_eq!(
+        url_host.as_deref(),
+        Some(got.host.as_str()),
+        "pin key differs from the URL host"
+    );
+    Ok(())
+}

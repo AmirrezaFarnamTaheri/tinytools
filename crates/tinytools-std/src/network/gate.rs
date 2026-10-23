@@ -157,8 +157,8 @@ pub(super) async fn validate_destination(
     body: Option<&str>,
 ) -> anyhow::Result<crate::url_guard::ValidatedUrl> {
     use crate::url_guard::{
-        ValidatedUrl, extract_host, extract_port, is_private_or_local_host, validate_url,
-        validate_url_with_dns_check,
+        ValidatedUrl, connect_host, extract_host, extract_port, is_private_or_local_host,
+        validate_url, validate_url_with_dns_check,
     };
     let url = validate_url(raw_url, allowed_domains)?;
     let host = extract_host(&url)?;
@@ -187,7 +187,11 @@ pub(super) async fn validate_destination(
                     blocked.ip()
                 );
             }
-            Ok(ValidatedUrl { url, host, addrs })
+            Ok(ValidatedUrl {
+                host: connect_host(&url)?,
+                url,
+                addrs,
+            })
         }
     }
 }
@@ -201,6 +205,27 @@ pub(crate) fn host_of(url: &str) -> String {
         .ok()
         .and_then(|u| u.host_str().map(str::to_string))
         .unwrap_or_else(|| "unknown".to_string())
+}
+
+/// Reads at most `cap + 1` bytes of `response`'s body, so a caller can tell
+/// a body over the cap from one exactly at it without reading the rest.
+///
+/// # Errors
+///
+/// Returns the transport error if a chunk fails to arrive.
+pub(super) async fn read_body_capped(
+    mut response: reqwest::Response,
+    cap: usize,
+) -> reqwest::Result<Vec<u8>> {
+    let limit = cap.saturating_add(1);
+    let mut body = Vec::new();
+    while body.len() < limit
+        && let Some(chunk) = response.chunk().await?
+    {
+        let take = chunk.len().min(limit - body.len());
+        body.extend_from_slice(&chunk[..take]);
+    }
+    Ok(body)
 }
 
 /// Response-size and timeout limits a tool falls back to when it is

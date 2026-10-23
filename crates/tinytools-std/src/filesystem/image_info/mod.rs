@@ -94,8 +94,9 @@ impl ImageInfoTool {
             let marker = bytes[i + 1];
             i += 2;
 
-            // SOF0..SOF3 markers contain dimensions
-            if (0xC0..=0xC3).contains(&marker) {
+            // SOF0..SOF15 carry the frame size; C4 (DHT), C8 (JPG) and
+            // CC (DAC) share the range but are ordinary segments.
+            if (0xC0..=0xCF).contains(&marker) && !matches!(marker, 0xC4 | 0xC8 | 0xCC) {
                 if i + 7 <= bytes.len() {
                     let h = u32::from(u16::from_be_bytes([bytes[i + 3], bytes[i + 4]]));
                     let w = u32::from(u16::from_be_bytes([bytes[i + 5], bytes[i + 6]]));
@@ -163,9 +164,14 @@ impl Tool for ImageInfoTool {
             Err(msg) => return Ok(ToolResult::error(msg)),
         };
 
-        let metadata = tokio::fs::metadata(&resolved)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to read file metadata: {e}"))?;
+        let metadata = match tokio::fs::metadata(&resolved).await {
+            Ok(m) => m,
+            Err(e) => {
+                return Ok(ToolResult::error(format!(
+                    "Failed to read file metadata: {e}"
+                )));
+            }
+        };
 
         let file_size = metadata.len();
 
@@ -175,9 +181,10 @@ impl Tool for ImageInfoTool {
             )));
         }
 
-        let bytes = tokio::fs::read(&resolved)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to read image file: {e}"))?;
+        let bytes = match tokio::fs::read(&resolved).await {
+            Ok(b) => b,
+            Err(e) => return Ok(ToolResult::error(format!("Failed to read image file: {e}"))),
+        };
 
         let format = Self::detect_format(&bytes);
         let dimensions = Self::extract_dimensions(&bytes, format);

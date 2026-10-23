@@ -23,8 +23,8 @@ mod settings;
 
 pub use command_environment::CommandEnvironment;
 pub use output::{
-    kill_process_group, output_or_kill, output_unbounded, output_with_input, own_process_group,
-    set_task_wrapper,
+    hide_console_window, kill_process_group, output_or_kill, output_unbounded, output_with_input,
+    own_process_group, set_task_wrapper,
 };
 pub use process_cleanup::{CleanupHold, ProcessCleanup};
 pub use settings::{

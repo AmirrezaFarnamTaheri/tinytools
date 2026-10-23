@@ -90,7 +90,16 @@ impl Tool for ReadDiffTool {
             .unwrap_or(false);
         let path_filter = args.get("path_filter").and_then(|v| v.as_str());
 
-        let mut git_args = vec!["diff", "--stat", "-p"];
+        // `base` comes from the model: a value starting with `-` would reach git
+        // as an option (`--output=<file>` writes a file from this read-only tool).
+        // No git revision starts with `-`.
+        if base.is_some_and(|b| b.starts_with('-')) {
+            return Ok(ToolResult::error("base must be a revision, not an option"));
+        }
+
+        // Same diff hardening as `git_operations`: a repository-configured
+        // external diff or textconv driver must not run.
+        let mut git_args = vec!["diff", "--no-ext-diff", "--no-textconv", "--stat", "-p"];
 
         if staged {
             git_args.push("--cached");
@@ -112,9 +121,8 @@ impl Tool for ReadDiffTool {
             "[read_diff] running git diff"
         );
 
-        let output = tokio::process::Command::new("git")
+        let output = crate::filesystem::git_operations::config::hardened_git(&workspace_dir)
             .args(&git_args)
-            .current_dir(&workspace_dir)
             .output()
             .await?;
 
