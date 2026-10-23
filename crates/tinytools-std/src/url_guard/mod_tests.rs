@@ -51,6 +51,11 @@ async fn system_dns_resolves_numeric_loopback_without_external_network() -> anyh
             .await
             .is_err()
     );
+    // An embedded NUL is rejected by the OS resolver without network access.
+    let error = super::resolve_host_ips("invalid\0host".to_string(), 80)
+        .await
+        .rejection()?;
+    assert!(error.contains("DNS resolution failed"));
     Ok(())
 }
 
