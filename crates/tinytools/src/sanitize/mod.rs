@@ -6,8 +6,9 @@
 //!
 //! The full pipeline ([`sanitize_for_llm`]) runs three steps:
 //!
-//! 1. **Control-character strip** ([`strip_control_chars`]) — removes ASCII
-//!    control bytes that have no place in human-readable copy. Newline and tab
+//! 1. **Control-character strip** ([`strip_control_chars`]) — removes control
+//!    characters and invisible format characters (zero-width space, bidi
+//!    overrides) that have no place in human-readable copy. Newline and tab
 //!    are preserved so multi-line descriptions render.
 //! 2. **Instruction-fence strip** ([`strip_instruction_fences`]) — removes
 //!    well-known LLM prompt-template boundary tokens (`<|im_start|>`,
@@ -62,13 +63,47 @@ const INSTRUCTION_FENCE_TOKENS: &[&str] = &[
     "### system:",
     "### user:",
     "### assistant:",
+    // Llama 3
+    "<|begin_of_text|>",
+    "<|start_header_id|>",
+    "<|end_header_id|>",
+    "<|eot_id|>",
+    "<|eom_id|>",
+    "<|python_tag|>",
+    // Harmony
+    "<|start|>",
+    "<|end|>",
+    "<|message|>",
+    "<|channel|>",
+    "<|call|>",
+    "<|return|>",
+    "<|constrain|>",
+    // Gemma
+    "<start_of_turn>",
+    "<end_of_turn>",
 ];
 
-/// Strips ASCII control characters, preserving newline and tab.
+/// Invisible format characters that can hide or reorder text: zero-width
+/// space, LRM/RLM, bidi embeddings and overrides, word joiner and invisible
+/// operators, bidi isolates, and the BOM. ZWNJ and ZWJ (U+200C, U+200D) are
+/// kept: emoji sequences and Indic and Persian text need them.
+const INVISIBLE_FORMAT_CHARS: &[std::ops::RangeInclusive<char>] = &[
+    '\u{200B}'..='\u{200B}',
+    '\u{200E}'..='\u{200F}',
+    '\u{202A}'..='\u{202E}',
+    '\u{2060}'..='\u{2064}',
+    '\u{2066}'..='\u{2069}',
+    '\u{FEFF}'..='\u{FEFF}',
+];
+
+/// Strips control characters and invisible format characters, preserving
+/// newline and tab.
 ///
-/// Removes `\x00`..=`\x08`, `\x0b`, `\x0c`, `\x0e`..=`\x1f`, and `\x7f`.
-/// Newline (`\x0a`) and tab (`\x09`) survive so legitimate multi-line
-/// descriptions still render.
+/// Removes C0 (except newline and tab), DEL, C1 (including U+0085), and the
+/// invisible format characters that can hide or reorder text (zero-width space,
+/// bidi marks, embeddings, overrides and isolates, word joiner, BOM). ZWNJ and
+/// ZWJ survive. Newline (`\x0a`) and tab (`\x09`) survive so legitimate
+/// multi-line descriptions still render.
 ///
 /// # Examples
 ///
@@ -84,9 +119,7 @@ pub fn strip_control_chars(input: &str) -> String {
             if *ch == '\n' || *ch == '\t' {
                 return true;
             }
-            // Drop ASCII C0 and DEL.
-            let code = *ch as u32;
-            !(code <= 0x1f || code == 0x7f)
+            !ch.is_control() && !INVISIBLE_FORMAT_CHARS.iter().any(|r| r.contains(ch))
         })
         .collect()
 }

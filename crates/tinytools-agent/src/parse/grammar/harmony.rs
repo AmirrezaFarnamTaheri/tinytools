@@ -95,16 +95,28 @@ fn absorb_start_prefix(text: &str, idx: usize) -> usize {
     }
 }
 
+/// A blank payload is a no-argument call (`{}`); a payload that is present
+/// but cannot be recovered into an object is `Malformed`, never `{}`.
 fn found(start: usize, end: usize, name: &str, payload: &str) -> Probe {
-    let arguments = recover_object(payload).unwrap_or_else(|| serde_json::json!({}));
-    Probe::Found(Block {
-        start,
-        end,
-        decoded: Decoded::Calls(vec![ParsedToolCall::new(
+    let arguments = if payload.trim().is_empty() {
+        Some(serde_json::json!({}))
+    } else {
+        recover_object(payload)
+    };
+    let decoded = match arguments {
+        Some(arguments) => Decoded::Calls(vec![ParsedToolCall::new(
             name,
             arguments,
             CallSource::Harmony,
         )]),
+        None => Decoded::Malformed {
+            body_chars: payload.chars().count(),
+        },
+    };
+    Probe::Found(Block {
+        start,
+        end,
+        decoded,
     })
 }
 
