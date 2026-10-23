@@ -14,6 +14,7 @@
 //! containing `x`). An empty `old_string` against a file that *does* exist is
 //! still an error — "replace nothing" is ambiguous, not a create.
 
+use super::file_sink::atomic_write;
 use super::gate::{FsGate, gate_for_context};
 use crate::file_state;
 use async_trait::async_trait;
@@ -390,7 +391,7 @@ impl ApplyPatchTool {
         let mut written: Vec<&FileBuffer> = Vec::new();
         for buf in buffers.values() {
             let path = &buf.path;
-            if let Err(e) = tokio::fs::write(&buf.resolved, &buf.contents).await {
+            if let Err(e) = atomic_write(&buf.resolved, buf.contents.as_bytes()).await {
                 let restore_errors = restore_originals(&written).await;
                 let suffix = if restore_errors.is_empty() {
                     "; previously-written files restored from snapshot".to_string()
@@ -428,7 +429,7 @@ async fn restore_originals(written: &[&FileBuffer]) -> Vec<String> {
     let mut errors = Vec::new();
     for buf in written {
         let result = match &buf.original {
-            Some(original) => tokio::fs::write(&buf.resolved, original).await,
+            Some(original) => atomic_write(&buf.resolved, original.as_bytes()).await,
             // The batch created this file, so "restore" means remove it —
             // otherwise a failed multi-file patch leaves a half-written new
             // file behind and the caller cannot tell it apart from a success.

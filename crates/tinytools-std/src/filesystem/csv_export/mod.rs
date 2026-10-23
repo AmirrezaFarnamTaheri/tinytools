@@ -241,7 +241,7 @@ impl CsvExportTool {
         }
 
         // Write the CSV file
-        match tokio::fs::write(&resolved_target, &csv_content).await {
+        match super::file_sink::atomic_write(&resolved_target, csv_content.as_bytes()).await {
             Ok(()) => {
                 let size_display = if csv_bytes >= 1024 * 1024 {
                     format!("{:.1} MB", csv_bytes as f64 / (1024.0 * 1024.0))
