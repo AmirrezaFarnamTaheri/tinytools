@@ -207,6 +207,27 @@ pub(crate) fn host_of(url: &str) -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
+/// Reads at most `cap + 1` bytes of `response`'s body, so a caller can tell
+/// a body over the cap from one exactly at it without reading the rest.
+///
+/// # Errors
+///
+/// Returns the transport error if a chunk fails to arrive.
+pub(super) async fn read_body_capped(
+    mut response: reqwest::Response,
+    cap: usize,
+) -> reqwest::Result<Vec<u8>> {
+    let limit = cap.saturating_add(1);
+    let mut body = Vec::new();
+    while body.len() < limit
+        && let Some(chunk) = response.chunk().await?
+    {
+        let take = chunk.len().min(limit - body.len());
+        body.extend_from_slice(&chunk[..take]);
+    }
+    Ok(body)
+}
+
 /// Response-size and timeout limits a tool falls back to when it is
 /// constructed with a `0` (or absent) value.
 ///

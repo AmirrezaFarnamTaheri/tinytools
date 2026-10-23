@@ -1,4 +1,4 @@
-use super::gate::{HttpLimits, NetGate, host_of};
+use super::gate::{HttpLimits, NetGate, host_of, read_body_capped};
 use async_trait::async_trait;
 use serde_json::json;
 use std::sync::Arc;
@@ -300,8 +300,8 @@ impl HttpRequestTool {
             .collect::<Vec<_>>()
             .join(", ");
 
-        let response_text = match response.text().await {
-            Ok(text) => self.truncate_response(&text),
+        let response_text = match read_body_capped(response, self.max_response_size).await {
+            Ok(body) => self.truncate_response(&String::from_utf8_lossy(&body)),
             Err(e) => format!("[Failed to read response body: {e}]"),
         };
 
