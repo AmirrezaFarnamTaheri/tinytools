@@ -1,8 +1,12 @@
 # Asynchronous HTML extraction in `web_fetch`
 
+**Status:** Superseded by the removal of `tinytools-std` in tinytools#99. The
+current implementation is owned by `tinyagents-harness-tools`; this document
+records historical behavior and does not describe a `tinytools` API.
+
 ## Status
 
-Accepted behavior, introduced with `AsyncHtmlExtractor` and
+Historical accepted behavior, introduced with `AsyncHtmlExtractor` and
 `WebFetchTool::new_async`.
 
 ## Context

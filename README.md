@@ -1,7 +1,9 @@
 # TinyTools
 
-The vocabulary an agent tool is written against: the `Tool` trait, the
-`ToolResult` it returns, and the classifications a host enforces around a call.
+TinyTools defines the vocabulary an agent tool is written against: the `Tool`
+trait, the `ToolResult` it returns, and the classifications a host enforces
+around a call. It contains definitions only; tool implementations live in
+their owning host or module.
 
 ```rust
 use tinytools::{Tool, ToolResult};
@@ -26,7 +28,8 @@ impl Tool for Echo {
 }
 ```
 
-That is a complete tool. Everything else in the trait has a default.
+This shows the shape of a tool implementation. Everything else in the trait
+has a default.
 
 `Tool` is async, so implementing it needs the `async-trait` shim above and
 beyond `tinytools` itself — this crate depends on it internally but does not
@@ -79,6 +82,10 @@ second sibling: a `ToolRanker` backed by TypeSafe's Jev decision model through
 transport.
 
 ## What is deliberately not here
+
+**No tool implementations.** This workspace defines shared tool contracts,
+types, policies, and call protocols. Concrete tools belong in their owning
+host or module.
 
 **No enforcement.** Nothing in this crate checks a `PermissionLevel`, applies a
 `ToolTimeout`, or decides whether an `external_effect` needs approval. A tool
