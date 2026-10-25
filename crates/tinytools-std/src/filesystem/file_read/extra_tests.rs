@@ -94,3 +94,53 @@ async fn an_oversized_path_drops_out_of_the_continuation_marker() {
     assert!(!out.contains("ppppp"));
     assert!(out.len() <= 16 * 1024);
 }
+
+// A paged read must arm the partial-read guard before a full overwrite.
+#[tokio::test]
+async fn a_paged_read_is_recorded_as_partial() {
+    crate::file_state::init_global(true);
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().canonicalize().unwrap().join("big.txt");
+    std::fs::write(&target, "x".repeat(40 * 1024)).unwrap();
+    let tool = FileReadTool::new(TestGate::supervised(dir.path().to_path_buf()));
+    let agent = format!("partial-{}", dir.path().display());
+    let r = crate::file_state::with_file_state_agent_id(
+        agent.clone(),
+        tool.execute(json!({"path": "big.txt"})),
+    )
+    .await
+    .unwrap();
+    assert!(
+        r.output().contains("[file_read page:"),
+        "not paged: test premise"
+    );
+    assert!(
+        crate::file_state::check_partial_read(&agent, &target).is_some(),
+        "a paged read was recorded as a full read"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_fifo_is_refused_not_read() {
+    let dir = TempDir::new().unwrap();
+    let fifo = dir.path().join("pipe");
+    assert!(
+        std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let tool = FileReadTool::new(TestGate::supervised(dir.path().to_path_buf()));
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tool.execute(json!({"path": "pipe"})),
+    )
+    .await;
+    // Give a stuck reader EOF so a failing run can still shut down.
+    std::thread::spawn(move || drop(std::fs::OpenOptions::new().write(true).open(fifo)));
+    let result = result.expect("file_read blocked on a FIFO").unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("not a regular file"));
+}

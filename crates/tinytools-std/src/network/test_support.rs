@@ -46,6 +46,7 @@ pub struct TestNetGate {
     used: AtomicUsize,
     local_only: bool,
     disclosed: Mutex<Vec<(String, bool, bool)>>,
+    prepared: Mutex<Vec<String>>,
 }
 
 impl TestNetGate {
@@ -62,6 +63,7 @@ impl TestNetGate {
             used: AtomicUsize::new(0),
             local_only: false,
             disclosed: Mutex::new(Vec::new()),
+            prepared: Mutex::new(Vec::new()),
         })
     }
 
@@ -73,12 +75,18 @@ impl TestNetGate {
             used: AtomicUsize::new(0),
             local_only: true,
             disclosed: Mutex::new(Vec::new()),
+            prepared: Mutex::new(Vec::new()),
         })
     }
 
     /// Everything the tool has disclosed so far: `(host, has_body, has_headers)`.
     pub fn disclosed(&self) -> Vec<(String, bool, bool)> {
         self.disclosed.lock().unwrap().clone()
+    }
+
+    /// The service names `prepare_client` was called with, in order.
+    pub fn prepared(&self) -> Vec<String> {
+        self.prepared.lock().unwrap().clone()
     }
 }
 
@@ -114,9 +122,10 @@ impl NetGate for TestNetGate {
 
     fn prepare_client(
         &self,
-        _service: &str,
+        service: &str,
         builder: reqwest::ClientBuilder,
     ) -> reqwest::ClientBuilder {
+        self.prepared.lock().unwrap().push(service.to_string());
         builder
     }
 

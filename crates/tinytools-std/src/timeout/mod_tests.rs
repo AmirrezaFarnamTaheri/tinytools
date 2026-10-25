@@ -422,3 +422,20 @@ async fn a_cleanup_hold_keeps_wait_pending_until_dropped() {
         .await
         .expect("a hold outside any scope registers nothing");
 }
+
+/// A child marked with `hide_console_window` still runs and reports its exit
+/// status. On Windows this goes through the `CREATE_NO_WINDOW` branch.
+#[tokio::test]
+async fn hide_console_window_child_still_runs() {
+    #[cfg(windows)]
+    let mut cmd = {
+        let mut cmd = tokio::process::Command::new("cmd");
+        cmd.args(["/C", "exit 3"]);
+        cmd
+    };
+    #[cfg(not(windows))]
+    let mut cmd = sh("exit 3");
+    hide_console_window(cmd.as_std_mut());
+    let status = cmd.status().await.expect("spawn");
+    assert_eq!(status.code(), Some(3));
+}

@@ -16,8 +16,10 @@
 
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use async_trait::async_trait;
+use tokio::io::AsyncWriteExt;
 
 /// Where a tool's file writes land.
 #[async_trait]
@@ -32,8 +34,56 @@ pub(super) struct OsFileSink;
 #[async_trait]
 impl FileSink for OsFileSink {
     async fn write(&self, path: &Path, contents: &[u8]) -> std::io::Result<()> {
-        tokio::fs::write(path, contents).await
+        atomic_write(path, contents).await
     }
+}
+
+/// Monotonic counter for temp-file names within a process.
+static TEMP_FILE_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// Atomically replace `path`'s contents with `contents`.
+///
+/// Writes a fresh (`create_new`) sibling temp file in the same directory, so
+/// the rename stays on one filesystem, gives it the target's permissions, and
+/// `rename`s it over the target. A crash mid-write leaves the old file or the
+/// complete new one, never a truncation, and a symlink at `path` is replaced
+/// rather than followed. The rename installs a new inode: other hard links
+/// keep the old contents, and the file is owned by the writing user.
+pub(super) async fn atomic_write(path: &Path, contents: &[u8]) -> std::io::Result<()> {
+    let dir = path.parent().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("{} has no parent directory", path.display()),
+        )
+    })?;
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let seq = TEMP_FILE_SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp = dir.join(format!(".{name}.{}.{seq}.tmp", std::process::id()));
+    let mut file = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)
+        .await
+        .map_err(|e| std::io::Error::new(e.kind(), format!("stage temp file: {e}")))?;
+    let mut result = stage(&mut file, path, contents).await;
+    drop(file);
+    if result.is_ok() {
+        result = tokio::fs::rename(&tmp, path).await;
+    }
+    if result.is_err() {
+        let _ = tokio::fs::remove_file(&tmp).await;
+    }
+    result
+}
+
+/// Fill the temp file, copy the target's permissions onto it (or `+x` is
+/// lost on the rename), and flush it to disk before the rename.
+async fn stage(file: &mut tokio::fs::File, target: &Path, contents: &[u8]) -> std::io::Result<()> {
+    file.write_all(contents).await?;
+    if let Ok(meta) = tokio::fs::metadata(target).await {
+        file.set_permissions(meta.permissions()).await?;
+    }
+    file.sync_all().await
 }
 
 /// The sink a tool uses unless a caller installs another one.
@@ -57,3 +107,7 @@ impl FileSink for RefusingSink {
         ))
     }
 }
+
+#[cfg(test)]
+#[path = "file_sink_tests.rs"]
+mod tests;

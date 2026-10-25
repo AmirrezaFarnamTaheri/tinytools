@@ -234,3 +234,37 @@ fn pipeline_output_always_respects_the_cap() {
 
 // A fixture cap; consumers own their presentation limits.
 const MAX_DESCRIPTION_BYTES: usize = 1024;
+
+// Role markers of current chat templates (Llama 3, Harmony, Gemma) and
+// invisible bidi/C1 controls must not survive into the model's tool context.
+#[test]
+fn modern_template_markers_and_invisible_controls_are_stripped() {
+    let mut survived = Vec::new();
+    for marker in [
+        "<|start_header_id|>",
+        "<|end_header_id|>",
+        "<|eot_id|>",
+        "<|start|>",
+        "<|channel|>",
+        "<|message|>",
+        "<|end|>",
+        "<start_of_turn>",
+        "<end_of_turn>",
+        "\u{202E}",
+        "\u{2066}",
+        "\u{200B}",
+        "\u{0085}",
+    ] {
+        let out = sanitize_for_llm(&format!("a{marker}b"), 1024);
+        if out != "ab" {
+            survived.push(format!("{marker:?}"));
+        }
+    }
+    assert!(
+        survived.is_empty(),
+        "survived sanitize_for_llm: {survived:?}"
+    );
+    // ZWJ and ZWNJ are kept: emoji sequences and Indic/Persian text need them.
+    let joined = "\u{1F468}\u{200D}\u{1F469} \u{0645}\u{06CC}\u{200C}\u{062E}";
+    assert_eq!(sanitize_for_llm(joined, 1024), joined);
+}

@@ -56,3 +56,23 @@ fn file_read_tools_and_wrapped_calls_are_recognised() {
     ));
     assert!(!is_read_only_call("use_skill", &json!({"tool": "shell"})));
 }
+
+// sed is a plain read only with `-n` and a script with no `w`/`W` (write),
+// `e` (execute) or `r` command; anything else may write, run or not be a read.
+#[test]
+fn sed_counts_only_with_n_and_a_script_that_cannot_write_or_run() {
+    assert!(is_read_only_command("sed -n '/fn main/p' src/lib.rs"));
+    for command in [
+        "sed -n '1 w out.txt' notes.md",
+        "sed -n 's/a/b/w out.txt' notes.md",
+        "sed -n 'W out.txt' notes.md",
+        "sed -n '1e touch pwned' notes.md",
+        "sed -n 's/x/y/e' notes.md",
+        "sed -n '1r other.txt' notes.md",
+        "sed '1,5p' notes.md",
+        "sed -E -n '1p' notes.md",
+        "sed -n -e '1p' notes.md",
+    ] {
+        assert!(!is_read_only_command(command), "{command}");
+    }
+}

@@ -289,8 +289,11 @@ async fn edit_honours_the_file_state_guard_and_records_its_write() {
         true,
         std::time::Instant::now(),
     );
+    // A partial read does not block an edit: the anchored match proves the
+    // agent saw the text it replaces.
     let result = run(agent.clone()).await.unwrap();
-    assert!(result.output().contains("Partial read"));
+    assert!(!result.is_error, "{}", result.output());
+    std::fs::write(&target, "aaa").unwrap();
 
     crate::file_state::record_read(
         &agent,
@@ -313,4 +316,52 @@ async fn edit_honours_the_file_state_guard_and_records_its_write() {
     let result = run(agent.clone()).await.unwrap();
     assert!(!result.is_error, "{}", result.output());
     assert!(crate::file_state::check_stale_read(&agent, &target).is_none());
+}
+
+// replace_all must not grow a file past the cap the input is held to.
+#[tokio::test]
+async fn edit_refuses_a_replacement_that_outgrows_the_cap() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("a.txt"), "a".repeat(1024 * 1024)).unwrap();
+    let tool = EditFileTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool
+        .execute(json!({
+            "path": "a.txt",
+            "old_string": "a",
+            "new_string": "b".repeat(64),
+            "replace_all": true
+        }))
+        .await
+        .unwrap();
+    let len = std::fs::metadata(dir.path().join("a.txt")).unwrap().len();
+    assert!(
+        result.is_error && len == 1024 * 1024,
+        "wrote {len} bytes (cap {MAX_FILE_BYTES}): {}",
+        &result.output()[..result.output().len().min(200)]
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn edit_refuses_a_fifo() {
+    let dir = tempfile::tempdir().unwrap();
+    let fifo = dir.path().join("pipe");
+    assert!(
+        std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let tool = EditFileTool::new(test_security(dir.path().to_path_buf()));
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tool.execute(json!({"path": "pipe", "old_string": "a", "new_string": "b"})),
+    )
+    .await;
+    // Give a stuck reader EOF so a failing run can still shut down.
+    std::thread::spawn(move || drop(std::fs::OpenOptions::new().write(true).open(fifo)));
+    let result = result.expect("edit blocked on a FIFO").unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("not a regular file"));
 }

@@ -668,3 +668,71 @@ async fn the_request_connects_to_the_pinned_address_and_keeps_the_host_name() {
         "{request}"
     );
 }
+
+// With a trailing-dot host the client must still connect only to the pin.
+#[tokio::test]
+async fn a_trailing_dot_host_still_connects_only_to_the_pinned_address() {
+    let ok = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok";
+    let (addr, _seen) = serve(vec![ok.to_string()]).await;
+    let tool = test_tool(vec![]);
+    let url = format!("http://pinned.invalid.:{}/x", addr.port());
+    let target = crate::url_guard::ValidatedUrl {
+        host: crate::url_guard::connect_host(&url).unwrap(),
+        url,
+        addrs: vec![addr],
+    };
+    let r = tool
+        .execute_request(&target, reqwest::Method::GET, vec![], None)
+        .await;
+    assert!(
+        r.is_ok(),
+        "client re-resolved instead of using the pin: {r:?}"
+    );
+}
+
+// The response cap is in bytes, so multibyte text must not exceed it.
+#[test]
+fn truncate_response_caps_bytes_not_chars() {
+    let tool = HttpRequestTool::new(
+        TestNetGate::supervised(),
+        vec!["example.com".into()],
+        10,
+        30,
+        DEFAULT_LIMITS,
+    );
+    let out = tool.truncate_response(&"€".repeat(10));
+    let marker = "\n\n... [Response truncated due to size limit] ...";
+    assert!(out.len() <= 10 + marker.len(), "{} bytes", out.len());
+}
+
+// A body larger than the cap is read only up to the cap, not to its end:
+// this server never stops sending, so an unbounded read never returns.
+#[tokio::test]
+async fn an_endless_body_is_read_only_up_to_the_cap() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let _ = socket.read(&mut [0u8; 8192]).await;
+        let _ = socket
+            .write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n")
+            .await;
+        let chunk = vec![b'x'; 65536];
+        while socket.write_all(&chunk).await.is_ok() {}
+    });
+    let tool = HttpRequestTool::new(TestNetGate::supervised(), vec![], 1000, 30, DEFAULT_LIMITS);
+    let target = pinned_to_local(&format!("http://{addr}/big"));
+    let output = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        let response = tool
+            .execute_request(&target, reqwest::Method::GET, vec![], None)
+            .await
+            .unwrap();
+        tool.format_response(response).await.unwrap().output()
+    })
+    .await;
+    assert!(output.is_ok(), "the body read did not stop at the cap");
+    let output = output.unwrap();
+    assert!(output.contains("[Response truncated due to size limit]"));
+    assert!(!output.contains(&"x".repeat(1001)));
+}

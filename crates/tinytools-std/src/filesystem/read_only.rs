@@ -8,10 +8,11 @@
 //! which it hit on most attempts.
 //!
 //! The test is deliberately narrow: a file-reading tool, or a shell command
-//! made only of `cd` and plain reads (`cat`, `head`, `tail`, `nl`, `sed`
-//! without `-i`, `echo`/`printf` separators), with no redirects, heredocs,
-//! substitutions or other programs. Anything else (a build, a test run, a
-//! search) keeps the normal pipeline: its output is not a file on disk.
+//! made only of `cd` and plain reads (`cat`, `head`, `tail`, `nl`, `sed -n`
+//! with a script that cannot write or run, `echo`/`printf` separators), with
+//! no redirects, heredocs, substitutions or other programs. Anything else (a
+//! build, a test run, a search) keeps the normal pipeline: its output is not a
+//! file on disk.
 
 use serde_json::Value;
 
@@ -21,7 +22,7 @@ const FILE_READ_TOOLS: &[&str] = &["file_read", "read_file", "read", "view_file"
 /// Shell tools, by the names hosts and common harness adapters use.
 const SHELL_TOOLS: &[&str] = &["shell", "bash", "exec", "run_command", "terminal"];
 
-/// Programs that print a file (`sed` only without in-place editing).
+/// Programs that print a file (`sed` only as a plain `-n` read).
 const READERS: &[&str] = &["cat", "head", "tail", "nl", "sed"];
 
 /// Programs allowed beside the readers: navigation and separators.
@@ -72,9 +73,11 @@ pub fn is_read_only_command(command: &str) -> bool {
         };
         let program = program.rsplit('/').next().unwrap_or(program);
         if program == "sed"
-            && segment
-                .split_whitespace()
-                .any(|w| w.starts_with("-i") || w == "--in-place" || w.starts_with("--in-place="))
+            && !is_plain_sed_read(
+                segment
+                    .split_once(char::is_whitespace)
+                    .map_or("", |(_, args)| args),
+            )
         {
             return false;
         }
@@ -85,6 +88,39 @@ pub fn is_read_only_command(command: &str) -> bool {
         }
     }
     reads
+}
+
+/// Whether `sed`'s arguments only print: its only flag is `-n`, and its
+/// script (the first other argument, quotes honoured) has no `w`/`W`
+/// (write), `e` (execute) or `r` (read another file) command.
+///
+/// ponytail: the script check refuses those letters anywhere, so a regex
+/// such as `/error/p` is refused too. That only costs the summary skip;
+/// parse sed's command grammar if it starts to matter.
+fn is_plain_sed_read(args: &str) -> bool {
+    let mut quiet = false;
+    let mut script = None;
+    let mut rest = args.trim_start();
+    while !rest.is_empty() {
+        let (word, tail) = if let Some(quote @ ('\'' | '"')) = rest.chars().next() {
+            let Some(end) = rest[1..].find(quote) else {
+                return false;
+            };
+            (&rest[1..=end], &rest[end + 2..])
+        } else {
+            rest.split_once(char::is_whitespace).unwrap_or((rest, ""))
+        };
+        if word.starts_with('-') {
+            if word != "-n" {
+                return false;
+            }
+            quiet = true;
+        } else if script.is_none() {
+            script = Some(word);
+        }
+        rest = tail.trim_start();
+    }
+    quiet && script.is_some_and(|s| !s.contains(['w', 'W', 'e', 'r']))
 }
 
 #[cfg(test)]
