@@ -1,5 +1,9 @@
 # Structural code implementation
 
+The native adapter and its regression tests now live in
+`tinyagents-harness-tools::code`; the historical commands below record its
+original location. The pure parser stays in `tinytools-code`.
+
 Spec: [Structural code and boilerplate](../specs/structural-code.md).
 
 1. Add public typed contracts, explicit grammars and query fixtures under

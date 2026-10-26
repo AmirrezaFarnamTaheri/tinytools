@@ -1192,7 +1192,7 @@ dependencies = [
 
 [[package]]
 name = "tinytools-code"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "blake3",
  "serde",
@@ -1233,12 +1233,10 @@ dependencies = [
  "regex",
  "reqwest",
  "rustix",
- "serde",
  "serde_json",
  "sha2",
  "tempfile",
  "tinytools",
- "tinytools-code",
  "tokio",
  "tracing",
  "walkdir",

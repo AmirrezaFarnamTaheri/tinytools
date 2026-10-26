@@ -41,7 +41,7 @@ Symbols/references: 2048 each. Diagnostics: 64. Manifests: 64 KiB; 32 parameters
 32 slots and 512 catalog entries. Configured limits have hard caps. All expansion
 paths check limits before output growth, including indentation.
 
-The optional `tinytools-std` `code` feature provides FsGate-backed native tools.
+The optional `tinyagents-harness-tools` `code` feature provides FsGate-backed native tools.
 Host permission, preview, result paging and atomic publication belong there.
 
 ## Validation

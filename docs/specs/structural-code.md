@@ -32,7 +32,7 @@ rejected before rendering. Custom manifests use portable relative template
 paths. Dependency declarations are informational and never
 install anything. Template syntax, expansions and output are bounded.
 
-`tinytools-std`'s optional `code` feature exports deferred `ast_outline`,
+`tinyagents-harness-tools`' optional `code` feature exports deferred `ast_outline`,
 `ast_symbol`, `ast_patch`, `chunk_search`, `chunk_inspect`, and `chunk_apply` tools.
 Every filesystem read/write passes the host gate, including custom manifests and
 templates. Tools bound source, manifest, template and response bytes and expose
