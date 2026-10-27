@@ -1,5 +1,9 @@
 # Implement asynchronous HTML extraction in `web_fetch`
 
+**Historical plan:** The implementation moved to `tinyagents-harness-tools`
+when `tinytools-std` was removed in tinytools#99. This plan records completed
+work and does not describe current ownership in `tinytools`.
+
 Spec: [Asynchronous HTML extraction in `web_fetch`](../specs/web-fetch-async-html-extraction.md).
 
 ## Steps

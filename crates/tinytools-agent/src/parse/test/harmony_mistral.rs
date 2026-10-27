@@ -133,12 +133,16 @@ fn mistral_v11_args_with_unparseable_json_is_not_a_call() {
 }
 
 #[test]
-fn mistral_v11_non_object_arguments_are_recovered_into_an_object() {
+fn mistral_v11_unrecoverable_non_object_arguments_are_malformed() {
     let response = "[TOOL_CALLS]get_weather[ARGS][1,2,3]";
-    let (_, calls) = parse(response);
-    assert_eq!(calls.len(), 1);
-    assert_eq!(calls[0].name, "get_weather");
-    assert!(calls[0].arguments.is_object());
+    let outcome = parse_known(response, &[]);
+    assert_eq!(outcome.calls.len(), 0);
+    assert!(
+        outcome
+            .diagnostics
+            .iter()
+            .any(|d| matches!(d, ParseDiagnostic::MalformedBlock { .. }))
+    );
 }
 
 #[test]
@@ -211,4 +215,28 @@ fn mistral_v11_second_call_split_across_fragments_is_not_lost() {
     assert_eq!(second.calls[0].name, "a");
     assert_eq!(second.calls[1].name, "b");
     assert_eq!(second.text, " done!");
+}
+
+// An unrecoverable or cut-off Harmony payload must not dispatch as `{}`.
+#[test]
+fn harmony_unrecoverable_arguments_are_not_dispatched_as_empty_object() {
+    let mut dispatched = Vec::new();
+    for payload in ["not json at all<|call|>", "{\"command\":\"rm -rf build/tm"] {
+        let response = format!("<|channel|>commentary to=functions.shell<|message|>{payload}");
+        let (_, calls) = parse(&response);
+        if calls.iter().any(|c| c.arguments == serde_json::json!({})) {
+            dispatched.push(payload);
+        }
+    }
+    assert!(
+        dispatched.is_empty(),
+        "dispatched with {{}}: {dispatched:?}"
+    );
+}
+
+#[test]
+fn harmony_blank_payload_is_a_no_argument_call() {
+    let (_, calls) = parse("<|channel|>commentary to=functions.list<|message|><|call|>");
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].arguments, serde_json::json!({}));
 }

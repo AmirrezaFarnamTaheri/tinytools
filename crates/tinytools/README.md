@@ -39,6 +39,12 @@ facts: workspace, thread id, and output cap — plus `host_extension()`, the
 same type-erased escape hatch `Tool::host_extension` offers, so a tool written
 against one specific harness can downcast to that harness's full context.
 
+The crate also provides [`sanitize`](src/sanitize/README.md), a pure lexical
+pipeline for untrusted tool, skill, and capability metadata. It removes ASCII
+control characters and known instruction-fence markers, then truncates at a
+UTF-8 boundary to the caller's byte limit. It does not perform semantic
+injection detection or enforce host policy.
+
 ## Sharing one tool across owned belts
 
 A host that builds a tool once and keeps it as `Arc<dyn Tool>` can still hand a
