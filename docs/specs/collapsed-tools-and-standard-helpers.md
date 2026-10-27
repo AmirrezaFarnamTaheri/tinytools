@@ -3,6 +3,11 @@
 **Status:** Implemented  
 **Owner:** tinytools maintainers
 
+**Scope note:** The standard-helper portion of this specification was
+superseded when `tinytools-std` was removed in tinytools#99. Its former helper
+implementations are owned by `tinyagents-harness-tools`; the collapsed-tool
+contracts remain in `tinytools`.
+
 ## Problem
 
 Hosts need to expose related tools as one action-dispatched tool without losing

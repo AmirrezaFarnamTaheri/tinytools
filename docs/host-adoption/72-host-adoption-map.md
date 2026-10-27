@@ -23,6 +23,5 @@ fetched-site disposition policy with the `tinytools::status` API:
   host's separate host-per-URL recovery scope; that remains a small URL
   projection (`web_fetch` + `url` argument → parsed URL host).
 
-The status parser is `tinytools::status::web_fetch_status`. The standard tool
-continues to expose `tinytools_std::network::web_fetch::status_of` as an alias
-to that same parser, so the producer and host share one accepted shape.
+The status parser is `tinytools::status::web_fetch_status`, which the producer
+and host share as one accepted shape.

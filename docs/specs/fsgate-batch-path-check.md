@@ -1,8 +1,13 @@
 # FsGate batch path check
 
+**Status:** Superseded by the removal of `tinytools-std` in tinytools#99. The
+former filesystem helper implementation is now owned by
+`tinyagents-harness-tools`; this document is historical and does not describe
+an API implemented by `tinytools`.
+
 ## Status and owner
 
-Implemented. Owner: tinytools-std (`filesystem`).
+Historical implementation: `tinytools-std` (`filesystem`).
 
 ## Problem
 

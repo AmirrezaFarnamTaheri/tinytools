@@ -4,6 +4,11 @@ Specification: [Collapsed tools and standard helpers](../specs/collapsed-tools-a
 
 **Status:** Complete
 
+**Historical plan:** The `tinytools-std` work in this plan was removed in
+tinytools#99. Its former helper implementations are now owned by
+`tinyagents-harness-tools`. Do not follow the deleted `crates/tinytools-std`
+paths; this plan records the completed historical work.
+
 ## Goal and assumptions
 
 Implement the public contracts in the linked specification across `tinytools`
