@@ -70,14 +70,22 @@ jobs:
           echo "CONFLICT_COUNT=$conflict_count"
           cat /tmp/upstream-merge-report/conflicts.txt
           if [ "$merge_exit" -ne 0 ]; then
-            if [ "$conflict_count" -eq 0 ]; then
-              echo "::error::Merge failed without unmerged entries; inspect git diagnostics"
-            else
-              echo "::warning::True overlapping merge conflicts need source-level resolution; no unsafe blanket ours/theirs override was applied"
+            if [ "$conflict_count" -ne 1 ] || [ "$(cat /tmp/upstream-merge-report/conflicts.txt)" != "Cargo.lock" ]; then
+              echo "::error::Conflict shape changed unexpectedly; refusing unreviewed merge"
+              exit 1
             fi
-            exit 0
+            # Cargo.lock is generated. Take upstream's base and re-resolve the
+            # merged workspace manifest (including preserved fork features).
+            git checkout --theirs -- Cargo.lock
+            cargo generate-lockfile
+            git add Cargo.lock
           fi
-          echo "No merge conflicts; creating a real merge commit preserving both parent histories"
+          if git ls-files -u | grep -q .; then
+            echo "::error::Unresolved merge conflicts still exist"
+            exit 1
+          fi
+          cargo metadata --locked --format-version 1 --no-deps > /tmp/upstream-merge-report/cargo-metadata.json
+          git diff --cached --check
           git commit -m "merge(upstream): integrate tinyhumansai/tinytools main $upstream_sha"
           git push origin HEAD:sync/openhuman-tinytools-2026-10-27
       - name: Upload conflict inventory and combined diff
@@ -89,7 +97,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Block completion until conflicts are resolved
-        if: steps.merge.outputs.merge_exit != '0'
+        if: failure()
         env:
           CONFLICT_COUNT: ${{ steps.merge.outputs.conflict_count }}
         run: |
